@@ -40,7 +40,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
       color: "bg-blue-50",
       content: [
         "React 19 & TypeScript: Interface ultra-rápida e segura",
-        "Google Gemini Multimodal: IA avançada para texto, voz e visão",
+        "IA avançada para texto, voz e visão",
         "MediaPipe: Visão computacional de alta performance no navegador",
         "Vite: Build de próxima geração para carregamento instantâneo",
         "Tailwind CSS: Design moderno, responsivo e elegante"
@@ -66,7 +66,6 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
       color: "bg-yellow-50",
       content: [
         "Análise de Prosódia: FFT (Fast Fourier Transform) & Audio API",
-        "Transcrição: Google Gemini 2.0 Flash Multimodal Live",
         "Detecção de Emoção: Redes Neurais via Google Gemini AI",
         "Sugestões de Excelência: RAG (Retrieval-Augmented Generation)",
         "Processamento: Stream Binário (PCM 16bit / 24kHz)"
@@ -78,7 +77,6 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
       icon: <BrainCircuit className="text-orange-500" size={48} />,
       color: "bg-orange-50",
       content: [
-        "Agente Cliente: Personalidade dinâmica e reativa (Gemini 2.5 Flash)",
         "Agente Evaluator: Auditoria técnica de cada frase em tempo real",
         "Agente Coach: Orientações imediatas baseadas em falhas detectadas",
         "Fila Serial: Processamento inteligente que evita conflitos de IA",

@@ -12,9 +12,53 @@ import { MOCK_SCENARIOS, MOCK_USERS, MOCK_RESULTS, MOCK_AGENTS } from './constan
 import { isGeminiConfigured } from './geminiEnv';
 import { TrainingUnavailable } from './components/TrainingUnavailable';
 
+const SESSION_USER_ID_KEY = 'ultragaz_session_user_id';
+
+function loadPersistedUser(): User | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const id = localStorage.getItem(SESSION_USER_ID_KEY);
+    if (!id) return null;
+    const user = MOCK_USERS.find((u) => u.id === id);
+    if (!user) {
+      localStorage.removeItem(SESSION_USER_ID_KEY);
+      return null;
+    }
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+function persistSessionUserId(userId: string) {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(SESSION_USER_ID_KEY, userId);
+}
+
+function clearSessionUserId() {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem(SESSION_USER_ID_KEY);
+}
+
+const WALKTHROUGH_DONE_KEY = (userId: string) => `ultragaz_walkthrough_done_${userId}`;
+
+function shouldShowWalkthroughForUser(user: User | null): boolean {
+  if (!user || user.role !== UserRole.EMPLOYEE) return false;
+  try {
+    return localStorage.getItem(WALKTHROUGH_DONE_KEY(user.id)) !== '1';
+  } catch {
+    return true;
+  }
+}
+
+/** Uma leitura na carga do módulo para sessão + walkthrough alinhados ao F5 */
+const initialSessionUser = loadPersistedUser();
+
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(initialSessionUser);
+  const [showWalkthrough, setShowWalkthrough] = useState(() =>
+    shouldShowWalkthroughForUser(initialSessionUser)
+  );
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'training' | 'admin' | 'pricing'>('dashboard');
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>(MOCK_SCENARIOS);
@@ -24,6 +68,7 @@ const App: React.FC = () => {
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
+    persistSessionUserId(user.id);
 
     // Acesso demo da proposta: abre a apresentação diretamente (sem walkthrough).
     if (user.username === 'proposta') {
@@ -34,7 +79,7 @@ const App: React.FC = () => {
     }
 
     if (user.role === UserRole.EMPLOYEE) {
-      setShowWalkthrough(true);
+      setShowWalkthrough(shouldShowWalkthroughForUser(user));
     } else {
       setShowWalkthrough(false);
     }
@@ -42,6 +87,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    clearSessionUserId();
     setCurrentUser(null);
     setCurrentPage('dashboard');
     setSelectedScenario(null);
@@ -82,7 +128,20 @@ const App: React.FC = () => {
   }
 
   if (showWalkthrough) {
-    return <Walkthrough onComplete={() => setShowWalkthrough(false)} />;
+    return (
+      <Walkthrough
+        onComplete={() => {
+          if (currentUser?.role === UserRole.EMPLOYEE) {
+            try {
+              localStorage.setItem(WALKTHROUGH_DONE_KEY(currentUser.id), '1');
+            } catch {
+              /* ignore */
+            }
+          }
+          setShowWalkthrough(false);
+        }}
+      />
+    );
   }
 
   // Se estiver em treinamento com um cenário selecionado, renderiza sem o Layout (Fullscreen)
