@@ -58,6 +58,7 @@ export const AdvancedAIFeatures: React.FC<AdvancedAIFeaturesProps> = ({
       | 'verification'
       | 'communication'
       | 'solution'
+      | 'eyeContact'
       | undefined;
 
     const keywordByDim: Record<string, string[]> = {
@@ -66,6 +67,7 @@ export const AdvancedAIFeatures: React.FC<AdvancedAIFeaturesProps> = ({
       verification: ['confirm', 'verific', 'confer', 'checar'],
       communication: ['claro', 'calma', 'ritmo', 'comunica'],
       solution: ['resolver', 'solução', 'corrigir', 'ajudar', 'proativo'],
+      eyeContact: ['contato', 'visual', 'olhar', 'câmera', 'camera'],
     };
 
     const moodBoostKeywords =
@@ -138,7 +140,8 @@ export const AdvancedAIFeatures: React.FC<AdvancedAIFeaturesProps> = ({
       procedure: 0,
       verification: 0,
       communication: 0,
-      solution: 0
+      solution: 0,
+      eyeContact: 0
     },
     recommendations: [],
     trajectory: 'stable'
@@ -155,6 +158,10 @@ export const AdvancedAIFeatures: React.FC<AdvancedAIFeaturesProps> = ({
     stable: <Target className="text-yellow-600" size={16} />,
     declining: <AlertCircle className="text-[#000fff]" size={16} />
   };
+
+  const pctInt = (n: number) =>
+    Math.min(100, Math.max(0, Math.round(Number.isFinite(n) ? n : 0)));
+  const confidencePct = pctInt(safePrediction.confidence * 100);
 
   return (
     <div className="space-y-4">
@@ -178,14 +185,14 @@ export const AdvancedAIFeatures: React.FC<AdvancedAIFeaturesProps> = ({
             <div>
               <p className="text-xs font-bold text-gray-500 uppercase mb-1">Confiança</p>
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="flex-1 min-w-0 h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-500 rounded-full transition-all"
-                    style={{ width: `${safePrediction.confidence * 100}%` }}
+                    style={{ width: `${confidencePct}%` }}
                   />
                 </div>
-                <span className="text-sm font-bold text-gray-700">
-                  {Math.round(safePrediction.confidence * 100)}%
+                <span className="text-sm font-bold text-gray-700 tabular-nums shrink-0">
+                  {confidencePct}%
                 </span>
               </div>
             </div>
@@ -211,19 +218,21 @@ export const AdvancedAIFeatures: React.FC<AdvancedAIFeaturesProps> = ({
                 ['verification', 'Verificação'],
                 ['communication', 'Comunicação'],
                 ['solution', 'Solução'],
+                ['eyeContact', 'Contato visual'],
               ] as const
             ).map(([key, label]) => {
               const value = safePrediction.predictedBreakdown[key];
+              const v = pctInt(value);
               return (
-              <div key={key} className="flex items-center gap-3">
-                <span className="text-xs font-bold text-gray-600 w-28">{label}:</span>
-                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div key={key} className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-bold text-gray-600 w-[7.25rem] shrink-0 leading-tight">{label}:</span>
+                <div className="flex-1 min-w-0 h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all"
-                    style={{ width: `${value}%` }}
+                    style={{ width: `${v}%` }}
                   />
                 </div>
-                <span className="text-xs font-black text-gray-700 w-12 text-right">{value}%</span>
+                <span className="text-xs font-black text-gray-700 tabular-nums min-w-[2.75rem] shrink-0 text-right">{v}%</span>
               </div>
               );
             })}

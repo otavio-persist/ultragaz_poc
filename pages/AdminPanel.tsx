@@ -1,5 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+
+/** Defina `true` para exibir novamente a aba "Custos" no menu (admin global). */
+const SHOW_ADMIN_COSTS_TAB = false;
 import { 
   Scenario, User, UserRole, SimulationResult, Country, Agent 
 } from '../types';
@@ -35,6 +38,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios,
   const [selectedEntity, setSelectedEntity] = useState<{ type: 'user' | 'store', id: string } | null>(null);
   const [selectedResult, setSelectedResult] = useState<SimulationResult | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (!SHOW_ADMIN_COSTS_TAB && tab === 'finance') {
+      setTab('analytics');
+    }
+  }, [tab]);
 
   const isGlobalAdmin = currentUser.role === UserRole.GLOBAL_ADMIN;
   const isStoreAdmin = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.REGIONAL_ADMIN;
@@ -155,7 +164,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios,
           <button onClick={() => setTab('trainings')} className={`whitespace-nowrap px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'trainings' ? 'bg-white shadow-md text-[#000fff]' : 'text-gray-400 hover:text-gray-600'}`}>
             Treinos
           </button>
-          {isGlobalAdmin && (
+          {isGlobalAdmin && SHOW_ADMIN_COSTS_TAB && (
             <button onClick={() => setTab('finance')} className={`whitespace-nowrap px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'finance' ? 'bg-white shadow-md text-[#000fff]' : 'text-gray-400 hover:text-gray-600'}`}>
               Custos
             </button>
@@ -411,7 +420,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios,
           </div>
         )}
 
-        {tab === 'finance' && isGlobalAdmin && (
+        {tab === 'finance' && isGlobalAdmin && SHOW_ADMIN_COSTS_TAB && (
           <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
              {/* Legenda: o que compõe o custo */}
              <div className="bg-amber-50 border border-amber-200 p-6 rounded-[24px]">

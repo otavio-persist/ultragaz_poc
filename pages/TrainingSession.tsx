@@ -78,6 +78,7 @@ import {
   Smile,
   Frown,
   Meh,
+  ChevronDown,
 } from 'lucide-react';
 
 interface TrainingSessionProps {
@@ -102,6 +103,7 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
   const [audioMetrics, setAudioMetrics] = useState<any>(null);
   const [textMetrics, setTextMetrics] = useState<any>(null);
   const [coachingMessage, setCoachingMessage] = useState<string | null>(null);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const [lastPrediction, setLastPrediction] = useState<SimulationResult['realTimePrediction'] | null>(null);
   const agentOrchestratorRef = useRef<AgentOrchestrator | null>(null);
   const lastCoachKeyRef = useRef<string | null>(null);
@@ -1190,32 +1192,56 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                   </div>
                 )}
 
-                {/* Overlay: Histórico do Chat (sobre o vídeo principal) */}
+                {/* Overlay: Histórico do Chat (colapsável; abre ao clicar) */}
                 <div className="absolute bottom-4 left-4 z-30 w-[380px] max-w-[calc(100%-2rem)]">
                   <div className="backdrop-blur-md bg-black/45 text-white rounded-2xl border border-white/15 shadow-2xl overflow-hidden">
-                    <div className="px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare size={14} className="text-white/80" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-white/80">Histórico</span>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryExpanded((v) => !v)}
+                      aria-expanded={historyExpanded}
+                      aria-controls="training-chat-history-panel"
+                      className="w-full px-4 py-3 flex items-center justify-between gap-2 text-left hover:bg-white/5 active:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <MessageSquare size={14} className="text-white/80 shrink-0" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white/80 truncate">
+                          Histórico
+                        </span>
                       </div>
-                      <span className="text-[10px] font-black text-white/70">{messages.length} msgs</span>
-                    </div>
-                    <div className="px-4 pb-4 max-h-[220px] overflow-y-auto space-y-2">
-                      {messages.slice(-8).reverse().map((msg, i) => (
-                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[92%] px-3 py-2 rounded-2xl text-xs font-bold leading-snug ${
-                            msg.role === 'user'
-                              ? 'bg-[#000fff] text-white'
-                              : 'bg-white/90 text-gray-900'
-                          }`}>
-                            {msg.content}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-black text-white/70 tabular-nums">
+                          {messages.length} {messages.length === 1 ? 'msg' : 'msgs'}
+                        </span>
+                        <ChevronDown
+                          size={18}
+                          className={`text-white/80 transition-transform duration-200 ${historyExpanded ? 'rotate-180' : ''}`}
+                          aria-hidden
+                        />
+                      </div>
+                    </button>
+                    {historyExpanded && (
+                      <div
+                        id="training-chat-history-panel"
+                        className="px-4 pb-4 max-h-[220px] overflow-y-auto space-y-2 border-t border-white/10 pt-3"
+                      >
+                        {messages.slice(-8).reverse().map((msg, i) => (
+                          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div
+                              className={`max-w-[92%] px-3 py-2 rounded-2xl text-xs font-bold leading-snug ${
+                                msg.role === 'user'
+                                  ? 'bg-[#000fff] text-white'
+                                  : 'bg-white/90 text-gray-900'
+                              }`}
+                            >
+                              {msg.content}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                      {messages.length === 0 && (
-                        <div className="text-xs font-bold text-white/70 italic">Aguardando conversa...</div>
-                      )}
-                    </div>
+                        ))}
+                        {messages.length === 0 && (
+                          <div className="text-xs font-bold text-white/70 italic">Aguardando conversa...</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1406,11 +1432,11 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                        <div className="grid grid-cols-2 gap-4">
                          <div className={`p-4 rounded-2xl border transition-colors duration-300 ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-blue-50 border-blue-100'}`}>
                            <p className={`text-[10px] font-black uppercase mb-1 ${isDarkMode ? 'text-gray-300' : 'text-blue-700'}`}>Score previsto</p>
-                           <p className={`text-3xl font-black ${isDarkMode ? 'text-white' : 'text-blue-700'}`}>{result.realTimePrediction.predictedScore}/100</p>
+                           <p className={`text-3xl font-black tabular-nums ${isDarkMode ? 'text-white' : 'text-blue-700'}`}>{Math.round(Number(result.realTimePrediction.predictedScore))}/100</p>
                          </div>
                          <div className={`p-4 rounded-2xl border transition-colors duration-300 ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
                            <p className={`text-[10px] font-black uppercase mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Confiança</p>
-                           <p className={`text-3xl font-black ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{Math.round(result.realTimePrediction.confidence * 100)}%</p>
+                           <p className={`text-3xl font-black tabular-nums ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{Math.min(100, Math.max(0, Math.round(Number(result.realTimePrediction.confidence) * 100)))}%</p>
                          </div>
                        </div>
                        {result.realTimePrediction.recommendations?.length > 0 && (

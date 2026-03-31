@@ -136,6 +136,7 @@ export interface SimulationResult {
       verification: number;
       communication: number;
       solution: number;
+      eyeContact: number;
     };
     recommendations: string[];
     trajectory: 'improving' | 'stable' | 'declining';

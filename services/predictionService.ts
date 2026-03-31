@@ -15,6 +15,8 @@ export interface PerformancePrediction {
     verification: number;
     communication: number;
     solution: number;
+    /** Contato visual (0–100), derivado de métricas de vídeo quando disponíveis */
+    eyeContact: number;
   };
   recommendations: string[];
   trajectory: 'improving' | 'stable' | 'declining';
@@ -70,7 +72,7 @@ export class PerformancePredictor {
     
     return {
       predictedScore: Math.round(predictedScore),
-      confidence,
+      confidence: Math.round(confidence * 100) / 100,
       predictedBreakdown,
       recommendations,
       trajectory
@@ -190,28 +192,36 @@ export class PerformancePredictor {
     const timeConfidence = Math.min(1, timeElapsed / (totalTime * 0.3)); // 30% do tempo
     const messageConfidence = Math.min(1, messageCount / 8); // 8 mensagens
     
-    return (timeConfidence + messageConfidence) / 2;
+    const raw = (timeConfidence + messageConfidence) / 2;
+    return Math.round(raw * 100) / 100;
   }
   
   private predictBreakdown(features: any) {
     const baseScore = this.calculatePredictedScore(features);
-    
+    const clampRound = (n: number) =>
+      Math.round(Math.max(0, Math.min(100, n)));
+
     return {
-      empathy: Math.max(0, Math.min(100, 
+      empathy: clampRound(
         baseScore + (features.empathyCount * 8) - 10
-      )),
-      procedure: Math.max(0, Math.min(100,
+      ),
+      procedure: clampRound(
         baseScore + (features.procedureCount * 5) - 5
-      )),
-      verification: Math.max(0, Math.min(100,
+      ),
+      verification: clampRound(
         baseScore + (features.procedureCount * 3) - 5
-      )),
-      communication: Math.max(0, Math.min(100,
+      ),
+      communication: clampRound(
         baseScore + (features.audioMetrics?.voiceQuality?.clarity || 80 - 50) * 0.2
-      )),
-      solution: Math.max(0, Math.min(100,
+      ),
+      solution: clampRound(
         baseScore + (features.solutionCount * 5) - 5
-      ))
+      ),
+      eyeContact: clampRound(
+        typeof features.videoMetrics?.eyeContactPercentage === 'number'
+          ? features.videoMetrics.eyeContactPercentage
+          : baseScore
+      )
     };
   }
   
@@ -236,6 +246,10 @@ export class PerformancePredictor {
     
     if (breakdown.solution < 70) {
       recommendations.push('Foque em resolver o problema do cliente de forma proativa');
+    }
+
+    if (breakdown.eyeContact < 70) {
+      recommendations.push('Mantenha contato visual com o cliente (olhar para a câmera) durante o atendimento');
     }
     
     if (features.audioMetrics?.stressLevel > 50) {
