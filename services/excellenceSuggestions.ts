@@ -5,7 +5,7 @@
 
 import { ChatMessage, Scenario, ScenarioMood, ScenarioType, Sector } from "../types";
 import { GoogleGenAI, Type } from "@google/genai";
-import { getGeminiApiKey } from "../env";
+import { getGeminiApiKey } from "../geminiEnv";
 
 const apiKey = getGeminiApiKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;

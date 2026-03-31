@@ -24,6 +24,9 @@ out/
 .env
 .env.*
 !.env.example
+# Arquivo literal "env" (sem extensão) conflita com imports tipo ./env no bundler
+/env
+env.local
 
 # Logs
 logs/

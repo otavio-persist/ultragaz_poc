@@ -6,7 +6,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { ChatMessage } from "../types";
 import { processFrameWithMediaPipe, clearMicroExpressionHistory } from "./mediapipeAnalysis";
-import { getGeminiApiKey } from "../env";
+import { getGeminiApiKey } from "../geminiEnv";
 
 const apiKey = getGeminiApiKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;

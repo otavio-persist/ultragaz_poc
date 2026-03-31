@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { ChatMessage, Scenario, SimulationResult, Country, ScenarioMood, Sector } from "./types";
 import { SYSTEM_PROMPT_SIMULATOR } from "./constants";
-import { getGeminiApiKey } from "./env";
+import { getGeminiApiKey } from "./geminiEnv";
 
 const apiKey = getGeminiApiKey();
 
