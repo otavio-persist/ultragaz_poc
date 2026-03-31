@@ -5,8 +5,9 @@
 
 import { ChatMessage, Scenario, ScenarioMood, ScenarioType, Sector } from "../types";
 import { GoogleGenAI, Type } from "@google/genai";
+import { getGeminiApiKey } from "../env";
 
-const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = getGeminiApiKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 // Sistema de rate limiting e cache para evitar exceder quota
@@ -43,7 +44,7 @@ function detectLang(scenario: Scenario): Lang {
   if (scenario.country === 'Brasil') return 'pt';
   if (scenario.country === 'Argentina' || scenario.country === 'Colômbia') return 'es';
   const text = (scenario.title + ' ' + scenario.description).toLowerCase();
-  if (text.includes('customer') || text.includes('happy meal') || text.includes('premium')) return 'en';
+  if (text.includes('customer') || text.includes('english') || text.includes('hello')) return 'en';
   if (text.includes('cajita') || text.includes('nuevo') || text.includes('¿') || text.includes('¡')) return 'es';
   return 'pt';
 }

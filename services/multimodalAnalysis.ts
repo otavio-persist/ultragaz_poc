@@ -6,9 +6,10 @@
 import { GoogleGenAI } from "@google/genai";
 import { ChatMessage } from "../types";
 import { processFrameWithMediaPipe, clearMicroExpressionHistory } from "./mediapipeAnalysis";
+import { getGeminiApiKey } from "../env";
 
-const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey });
+const apiKey = getGeminiApiKey();
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 // ---- Controle de custo/quotas ----
 // Por padrão, desativamos chamadas de IA aqui para evitar 404/429 e ruído no console.

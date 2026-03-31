@@ -13,7 +13,7 @@ const detectScenarioLanguage = (scenario: Scenario): 'português' | 'español' |
     
     // Detectar espanhol
     if (text.includes('ñ') || text.includes('¿') || text.includes('¡') || 
-        text.includes('cajita feliz') || text.includes('nuevo') || 
+        text.includes('nuevo') || 
         text.includes('juguete') || text.includes('cliente entra')) {
       return 'español';
     }
@@ -21,17 +21,17 @@ const detectScenarioLanguage = (scenario: Scenario): 'português' | 'español' |
     // Detectar inglês - palavras-chave comuns em inglês
     const englishKeywords = [
       'customer', 'approaches', 'asking about', 'ingredients', 'taste', 
-      'worth trying', 'makes it special', 'compared to', 'new burger launch',
-      'premium signature', 'they are curious', 'they want to know',
+      'worth trying', 'makes it special', 'compared to', 'new service launch',
+      'premium service', 'they are curious', 'they want to know',
       'you must demonstrate', 'addressing any questions'
     ];
     
     const hasEnglishKeywords = englishKeywords.some(keyword => text.includes(keyword));
     
     // Verificar também se começa com palavras em inglês
-    const titleStartsWithEnglish = /^(new|a customer|the customer|happy meal)/i.test(scenario.title);
+    const titleStartsWithEnglish = /^(new|a customer|the customer|hello|hi)/i.test(scenario.title);
     
-    if (hasEnglishKeywords || titleStartsWithEnglish || text.includes('happy meal')) {
+    if (hasEnglishKeywords || titleStartsWithEnglish) {
       return 'english';
     }
     

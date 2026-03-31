@@ -2,12 +2,13 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { ChatMessage, Scenario, SimulationResult, Country, ScenarioMood, Sector } from "./types";
 import { SYSTEM_PROMPT_SIMULATOR } from "./constants";
+import { getGeminiApiKey } from "./env";
 
-const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = getGeminiApiKey();
 
 if (!apiKey) {
-  console.error('❌ GEMINI_API_KEY não encontrada! Verifique o arquivo .env.local');
-  throw new Error('GEMINI_API_KEY não configurada. Por favor, adicione GEMINI_API_KEY no arquivo .env.local');
+  console.error('❌ Chave do Gemini não encontrada! Configure VITE_GEMINI_API_KEY (ex.: no Netlify) e recompile.');
+  throw new Error('Chave do Gemini não configurada. Configure VITE_GEMINI_API_KEY nas variáveis de ambiente (ex.: Netlify).');
 }
 
 const ai = new GoogleGenAI({ apiKey });
@@ -61,7 +62,7 @@ const detectScenarioLanguage = (scenario: Scenario): 'português' | 'español' |
     
     // Detectar espanhol
     if (text.includes('ñ') || text.includes('¿') || text.includes('¡') || 
-        text.includes('cajita feliz') || text.includes('nuevo') || 
+        text.includes('nuevo') || 
         text.includes('juguete') || text.includes('cliente entra')) {
       return 'español';
     }
@@ -69,17 +70,17 @@ const detectScenarioLanguage = (scenario: Scenario): 'português' | 'español' |
     // Detectar inglês - palavras-chave comuns em inglês
     const englishKeywords = [
       'customer', 'approaches', 'asking about', 'ingredients', 'taste', 
-      'worth trying', 'makes it special', 'compared to', 'new burger launch',
-      'premium signature', 'they are curious', 'they want to know',
+      'worth trying', 'makes it special', 'compared to', 'new service launch',
+      'premium service', 'they are curious', 'they want to know',
       'you must demonstrate', 'addressing any questions'
     ];
     
     const hasEnglishKeywords = englishKeywords.some(keyword => text.includes(keyword));
     
     // Verificar também se começa com palavras em inglês
-    const titleStartsWithEnglish = /^(new|a customer|the customer|happy meal)/i.test(scenario.title);
+    const titleStartsWithEnglish = /^(new|a customer|the customer|hello|hi)/i.test(scenario.title);
     
-    if (hasEnglishKeywords || titleStartsWithEnglish || text.includes('happy meal')) {
+    if (hasEnglishKeywords || titleStartsWithEnglish) {
       return 'english';
     }
     

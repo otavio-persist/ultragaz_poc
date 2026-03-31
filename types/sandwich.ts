@@ -15,33 +15,26 @@ export interface SandwichRecipe {
 
 export const SANDWICH_RECIPES: SandwichRecipe[] = [
   {
-    id: 'bigmac',
-    name: 'Big Mac',
-    description: 'O clássico hambúrguer com dois hambúrgueres, alface, queijo, molho especial, cebola e picles em pão com gergelim.',
+    id: 'kit-instalacao-p13',
+    name: 'Kit de Instalação P13',
+    description: 'Monte os itens essenciais para uma instalação segura (treinamento Ultragaz).',
     ingredients: [
-      { id: 'pao-gergelim-topo', name: 'Pão com Gergelim (Topo)', emoji: '🍞' },
-      { id: 'alface', name: 'Alface', emoji: '🥬' },
-      { id: 'queijo', name: 'Queijo', emoji: '🧀' },
-      { id: 'hamburguer-1', name: 'Hambúrguer', emoji: '🍔' },
-      { id: 'cebola', name: 'Cebola', emoji: '🧅' },
-      { id: 'picles', name: 'Picles', emoji: '🥒' },
-      { id: 'molho-especial', name: 'Molho Especial', emoji: '🥄' },
-      { id: 'pao-meio', name: 'Pão do Meio', emoji: '🍞' },
-      { id: 'hamburguer-2', name: 'Hambúrguer', emoji: '🍔' },
-      { id: 'queijo-2', name: 'Queijo', emoji: '🧀' },
-      { id: 'alface-2', name: 'Alface', emoji: '🥬' },
-      { id: 'pao-gergelim-base', name: 'Pão com Gergelim (Base)', emoji: '🍞' },
+      { id: 'botijao-p13', name: 'Botijão P13', emoji: '🛢️' },
+      { id: 'registro', name: 'Registro', emoji: '🔩' },
+      { id: 'mangueira', name: 'Mangueira', emoji: '🧵' },
+      { id: 'abracadeira', name: 'Abraçadeira', emoji: '🗜️' },
+      { id: 'teste-vedacao', name: 'Teste de Vedação (espuma)', emoji: '🫧' },
     ]
   },
   {
-    id: 'mcnuggets',
-    name: 'McNuggets',
-    description: 'Tiras de frango empanadas e crocantes.',
+    id: 'checklist-seguranca',
+    name: 'Checklist de Segurança',
+    description: 'Organize as etapas básicas de segurança antes de finalizar um atendimento.',
     ingredients: [
-      { id: 'nugget-1', name: 'Nugget de Frango', emoji: '🍗' },
-      { id: 'nugget-2', name: 'Nugget de Frango', emoji: '🍗' },
-      { id: 'nugget-3', name: 'Nugget de Frango', emoji: '🍗' },
-      { id: 'nugget-4', name: 'Nugget de Frango', emoji: '🍗' },
+      { id: 'confirmar-endereco', name: 'Confirmar endereço', emoji: '📍' },
+      { id: 'confirmar-tipo', name: 'Confirmar tipo de botijão', emoji: '🏷️' },
+      { id: 'orientar-ventilacao', name: 'Orientar ventilação (se houver cheiro de gás)', emoji: '🌬️' },
+      { id: 'nao-acionar-interruptor', name: 'Não acionar interruptores', emoji: '⛔' },
     ]
   }
 ];

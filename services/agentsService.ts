@@ -5,9 +5,10 @@
 
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { Scenario, ChatMessage, ScenarioMood, Agent } from "../types";
+import { getGeminiApiKey } from "../env";
 
-const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey });
+const apiKey = getGeminiApiKey();
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 // Tipos de agentes
 export enum AgentType {
@@ -33,6 +34,9 @@ class DynamicAgent {
   private config: Agent;
   
   constructor(config: Agent) {
+    if (!ai) {
+      throw new Error('IA indisponível. Configure VITE_GEMINI_API_KEY no ambiente e recompile.');
+    }
     this.llm = ai;
     this.config = config;
   }

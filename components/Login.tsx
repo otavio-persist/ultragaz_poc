@@ -42,7 +42,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     
     // Simulação de delay de rede
     setTimeout(() => {
-      if (recoveryEmail.toLowerCase() === 'joao@mc.com.br') {
+      if (recoveryEmail.toLowerCase() === 'joao@ultragaz.com.br') {
         setRecoveryStatus('success');
       } else {
         setRecoveryStatus('error');

@@ -26,8 +26,8 @@ export const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario, onStart, a
     if (scenario.country === 'ALL') {
       // Detectar pelo título/descrição
       const text = scenario.title + ' ' + scenario.description;
-      if (text.includes('ñ') || text.includes('¿') || text.includes('¡') || text.includes('Cajita Feliz') || text.includes('Nuevo')) return 'español';
-      if (text.includes('New Burger') || text.includes('Premium Signature') || text.includes('Happy Meal') || text.includes('toy') || text.toLowerCase().includes('english')) return 'english';
+      if (text.includes('ñ') || text.includes('¿') || text.includes('¡') || text.includes('Nuevo')) return 'español';
+      if (text.includes('Customer') || text.includes('Hello') || text.includes('Hi') || text.toLowerCase().includes('english')) return 'english';
       return 'português';
     }
     return 'português';

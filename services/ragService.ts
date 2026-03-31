@@ -5,9 +5,10 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { Scenario, ChatMessage } from "../types";
+import { getGeminiApiKey } from "../env";
 
-const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey });
+const apiKey = getGeminiApiKey();
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 // Base de conhecimento da Ultragaz (em produção, viria de banco de dados)
 const KNOWLEDGE_BASE = {
@@ -123,6 +124,9 @@ export async function generateRAGResponse(
   scenario: Scenario,
   context: ChatMessage[]
 ): Promise<string> {
+  if (!ai) {
+    return "IA indisponível no momento. Configure VITE_GEMINI_API_KEY no ambiente (ex.: Netlify) e recompile.";
+  }
   // 1. Recuperar documentos relevantes
   const relevantDocs = await retrieveRelevantDocuments(query, scenario);
   
