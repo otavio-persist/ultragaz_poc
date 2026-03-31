@@ -441,12 +441,12 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
       className="fixed inset-0 z-[100] flex flex-col overflow-hidden"
       style={{ background: LOGIN_PANEL_GRADIENT }}
     >
-      {/* Marca d'água NDA */}
+      {/* NDA — faixa no topo, acima do conteúdo da apresentação (sempre visível) */}
       <div
-        className="pointer-events-none fixed inset-0 z-[96] flex items-center justify-center overflow-hidden"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[118] border-b border-gray-900/10 bg-white/35 px-4 py-3 shadow-sm backdrop-blur-sm md:px-8 md:py-3.5"
         aria-hidden
       >
-        <p className="max-w-[95vw] text-center select-none text-[clamp(1.75rem,7vw,4.5rem)] font-black uppercase leading-none tracking-tighter text-white/[0.22] shadow-sm [text-shadow:0_1px_0_rgba(0,0,0,0.06)] rotate-[-14deg] px-4">
+        <p className="text-center text-[10px] font-black uppercase leading-tight tracking-[0.12em] text-gray-900/70 drop-shadow-[0_1px_0_rgba(255,255,255,0.85)] md:text-xs md:tracking-[0.18em]">
           NDA (Acordo de Não Divulgação)
         </p>
       </div>
@@ -466,7 +466,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
         </p>
       </div>
 
-      <div className="absolute top-6 right-6 z-[110]">
+      <div className="absolute top-6 right-6 z-[125]">
         <button
           type="button"
           onClick={onExit}
@@ -478,7 +478,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
         </button>
       </div>
 
-      <div className="relative z-[100] flex min-h-0 flex-1 flex-col overflow-hidden pb-24 pt-14 md:flex-row md:pb-20">
+      <div className="relative z-[100] flex min-h-0 flex-1 flex-col overflow-hidden pb-24 pt-[4.5rem] md:flex-row md:pb-20 md:pt-20">
         <div className="flex-1 overflow-y-auto border-b border-white/25 p-6 md:border-b-0 md:border-r md:p-12 lg:p-16">
           <div className="max-w-xl rounded-[32px] border border-white/60 bg-white/95 p-6 shadow-xl shadow-black/10 backdrop-blur-md md:p-10">
             <div className="inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-2 shadow-sm">
