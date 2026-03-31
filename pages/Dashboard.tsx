@@ -131,8 +131,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartTraining, showScena
            <h2 className="text-xl font-black text-gray-900 mb-8 flex items-center gap-2">
              <TrendingUp size={20} className="text-[#000fff]" /> Evolução de Competências
            </h2>
-           <div className="h-[350px] w-full">
-             <ResponsiveContainer width="100%" height="100%">
+           <div className="h-[350px] w-full min-w-0">
+             <ResponsiveContainer width="100%" height={350}>
                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
                  { subject: 'Empatia', A: 85, B: 70 },
                  { subject: 'Proced.', A: 92, B: 85 },

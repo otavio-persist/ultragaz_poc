@@ -57,7 +57,6 @@ import { addExcellenceSuggestions, generateExcellenceSuggestionWithAI, resetSugg
 import { initializeMediaPipe } from '../services/mediapipeAnalysis';
 import { AgentOrchestrator } from '../services/agentsService';
 import { MOCK_AGENTS } from '../constants';
-import { CustomerAvatar3D } from '../components/CustomerAvatar3D';
 import { 
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
 } from 'recharts';
@@ -427,94 +426,39 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
       isSessionActiveRef.current = true;
 
       initialMessageSentRef.current = false;
+
+      let wsClosedLogged = false;
+      let liveCloseAlertShown = false;
+
       const sessionPromise = connectLiveSimulation(initialScenario, {
-        onopen: async () => {
-          console.log('✅ Conexão com Gemini estabelecida');
-          
-          try {
-            // Aguardar a sessão ser estabelecida
-            const s = await sessionPromise;
-            
-            // Atualizar a referência da sessão imediatamente
-            liveSessionRef.current = s;
-            
-            if (!isSessionActiveRef.current) {
-              console.warn('⚠️ Sessão não está mais ativa');
-              return;
-            }
-            
-            // NÃO enviar mensagem inicial - o cliente deve esperar o funcionário falar primeiro
-            // A instrução do sistema já orienta o cliente a esperar
-            initialMessageSentRef.current = true;
-            console.log('✅ Sessão pronta - cliente aguardando funcionário iniciar a conversa');
-            
-            // Configurar processamento de áudio
-            const source = inputCtx.createMediaStreamSource(stream);
-            audioSourceRef.current = source;
-            const processor = inputCtx.createScriptProcessor(4096, 1, 1);
-            audioProcessorRef.current = processor;
-          
-          let consecutiveErrors = 0;
-          const MAX_CONSECUTIVE_ERRORS = 3;
-          
-          processor.onaudioprocess = (e) => {
-            // Verificar se a sessão ainda está ativa antes de processar
-            if (!isSessionActiveRef.current) return;
-            
-            const currentSession = liveSessionRef.current;
-            if (!currentSession) return;
-            
-            // Verificar se o WebSocket está fechado ou fechando
-            try {
-              const ws = (currentSession as any)?._ws;
-              const wsState = ws?.readyState;
-              
-              if (wsState === 2 || wsState === 3) { // 2 = CLOSING, 3 = CLOSED
-                isSessionActiveRef.current = false;
-                if (audioProcessorRef.current) {
-                  audioProcessorRef.current.onaudioprocess = null;
-                }
-                return;
-              }
-            } catch (err) {}
-            
-            try {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const int16 = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
-              
-              if (currentSession && isSessionActiveRef.current) {
-                try {
-                  currentSession.sendRealtimeInput({ 
-                    media: { data: encodeAudio(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' } 
-                  });
-                  consecutiveErrors = 0;
-                } catch (err: any) {
-                  consecutiveErrors++;
-                  const errorMessage = err?.message || String(err);
-                  if (errorMessage.includes('CLOSING') || errorMessage.includes('CLOSED') || errorMessage.includes('WebSocket')) {
-                    isSessionActiveRef.current = false;
-                    if (audioProcessorRef.current) audioProcessorRef.current.onaudioprocess = null;
-                    return;
-                  }
-                  if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                    isSessionActiveRef.current = false;
-                    return;
-                  }
-                }
-              }
-            } catch (err) {
-              consecutiveErrors++;
-              if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) isSessionActiveRef.current = false;
-            }
-          };
-            
-            source.connect(processor);
-            processor.connect(inputCtx.destination);
-          } catch (err) {
-            console.error('❌ Erro ao configurar sessão:', err);
-            setIsLoading(false);
+        onopen: () => {
+          console.log('✅ Conexão com Gemini estabelecida (WebSocket aberto)');
+        },
+        onclose: (event: unknown) => {
+          if (!wsClosedLogged) {
+            wsClosedLogged = true;
+            console.warn('⚠️ Live API WebSocket fechou:', event);
+          }
+          isSessionActiveRef.current = false;
+
+          const ce = event as CloseEvent;
+          const code = ce?.code;
+          const reason = (ce?.reason || '').trim();
+          const leaked =
+            code === 1008 ||
+            /leaked|revoked|invalid api key|api key was reported/i.test(reason);
+
+          if (leaked && !liveCloseAlertShown) {
+            liveCloseAlertShown = true;
+            alert(
+              'A API do Google encerrou a conexão: a chave Gemini foi bloqueada ou considerada vazada.\n\n' +
+                '1) Crie uma NOVA chave em https://aistudio.google.com/apikey\n' +
+                '2) Coloque em .env.local: VITE_GEMINI_API_KEY=sua_nova_chave\n' +
+                '3) Reinicie o servidor (npm run dev)\n\n' +
+                'Não commite a chave nem publique em repositórios públicos.'
+            );
             setStep('intro');
+            setIsLoading(false);
           }
         },
         onerror: (error: any) => {
@@ -591,16 +535,84 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
         }
       });
 
-      // Aguardar a sessão ser estabelecida
+      // Só depois que o SDK devolve a Session (setup + mensagem inicial enviados), ligamos o microfone.
       const session = await sessionPromise;
       liveSessionRef.current = session;
-      setIsLoading(false);
-      
-      // Marcar que a sessão está pronta (não enviamos mensagem inicial - cliente espera funcionário)
-      if (isSessionActiveRef.current && session && !initialMessageSentRef.current) {
-        initialMessageSentRef.current = true;
-        console.log('✅ Sessão pronta (fallback) - cliente aguardando funcionário iniciar a conversa');
+
+      if (!isSessionActiveRef.current) {
+        setIsLoading(false);
+        return;
       }
+
+      initialMessageSentRef.current = true;
+      console.log('✅ Sessão Live pronta — fale no microfone para o cliente (IA) responder.');
+
+      const getLiveWs = (s: typeof session) => (s as unknown as { conn?: { ws?: WebSocket } })?.conn?.ws;
+
+      const source = inputCtx.createMediaStreamSource(stream);
+      audioSourceRef.current = source;
+      const processor = inputCtx.createScriptProcessor(4096, 1, 1);
+      audioProcessorRef.current = processor;
+
+      // Evita devolver o microfone aos alto-falantes (eco / feedback que piora o áudio e a sessão).
+      const muteOut = inputCtx.createGain();
+      muteOut.gain.value = 0;
+      source.connect(processor);
+      processor.connect(muteOut);
+      muteOut.connect(inputCtx.destination);
+
+      let consecutiveErrors = 0;
+      const MAX_CONSECUTIVE_ERRORS = 3;
+      let sendFailLogged = false;
+
+      processor.onaudioprocess = (e) => {
+        if (!isSessionActiveRef.current) return;
+
+        const currentSession = liveSessionRef.current;
+        if (!currentSession) return;
+
+        const ws = getLiveWs(currentSession);
+        const rs = ws?.readyState;
+        if (rs === 2 || rs === 3) {
+          if (!sendFailLogged) {
+            sendFailLogged = true;
+            console.warn('⚠️ WebSocket encerrado; parando envio de áudio.');
+          }
+          isSessionActiveRef.current = false;
+          processor.onaudioprocess = null;
+          return;
+        }
+
+        try {
+          const inputData = e.inputBuffer.getChannelData(0);
+          const int16 = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
+
+          currentSession.sendRealtimeInput({
+            media: { data: encodeAudio(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' },
+          });
+          consecutiveErrors = 0;
+        } catch (err: unknown) {
+          consecutiveErrors++;
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('CLOSING') || msg.includes('CLOSED') || msg.includes('WebSocket')) {
+            if (!sendFailLogged) {
+              sendFailLogged = true;
+              console.warn('⚠️ Envio de áudio interrompido (WebSocket fechado).');
+            }
+            isSessionActiveRef.current = false;
+            processor.onaudioprocess = null;
+            return;
+          }
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            console.warn('⚠️ Muitos erros ao enviar áudio; interrompendo.');
+            isSessionActiveRef.current = false;
+            processor.onaudioprocess = null;
+          }
+        }
+      };
+
+      setIsLoading(false);
     } catch (error: any) {
       console.error('❌ Erro ao inicializar sessão:', error);
       alert(`Erro ao iniciar simulação: ${error.message || 'Verifique sua chave GEMINI_API_KEY no arquivo .env.local e reinicie o servidor'}`);
@@ -1124,13 +1136,7 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
             {/* Área principal: vídeo/avatar (foco total no mobile, tipo chamada de vídeo) */}
             <div className={`flex-1 flex flex-col items-center justify-center rounded-[24px] md:rounded-[40px] border shadow-sm relative overflow-hidden transition-colors duration-300 min-h-0 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
               <div className="relative w-full h-full rounded-[40px] overflow-hidden">
-                {initialScenario.id === 'sc6' ? (
-                  <CustomerAvatar3D 
-                    mood={currentMood} 
-                    isSpeaking={isSpeaking} 
-                  />
-                ) : (
-                  <video
+                <video
                     ref={clientVideoRef}
                     autoPlay
                     loop
@@ -1145,7 +1151,6 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                       });
                     }}
                   />
-                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent pointer-events-none" />
 
                 {/* Indicador de Sentimento no canto */}

@@ -32,3 +32,8 @@ export function getGeminiApiKey(): string | undefined {
     nodeEnv?.API_KEY
   );
 }
+
+/** Indica se há chave configurada (build ou .env). Não valida quota nem se a chave foi revogada. */
+export function isGeminiConfigured(): boolean {
+  return !!getGeminiApiKey()?.trim();
+}

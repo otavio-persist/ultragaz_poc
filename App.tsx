@@ -9,6 +9,8 @@ import { Walkthrough } from './components/Walkthrough';
 import PricingSlides from './components/PricingSlides';
 import { Scenario, User, UserRole, SimulationResult, Agent } from './types';
 import { MOCK_SCENARIOS, MOCK_USERS, MOCK_RESULTS, MOCK_AGENTS } from './constants';
+import { isGeminiConfigured } from './geminiEnv';
+import { TrainingUnavailable } from './components/TrainingUnavailable';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -85,6 +87,17 @@ const App: React.FC = () => {
 
   // Se estiver em treinamento com um cenário selecionado, renderiza sem o Layout (Fullscreen)
   if (currentPage === 'training' && selectedScenario) {
+    if (!isGeminiConfigured()) {
+      return (
+        <TrainingUnavailable
+          scenarioTitle={selectedScenario.title}
+          onBack={() => {
+            setSelectedScenario(null);
+            setCurrentPage('dashboard');
+          }}
+        />
+      );
+    }
     return (
       <TrainingSession 
         scenario={selectedScenario} 

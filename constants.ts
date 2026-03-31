@@ -39,7 +39,7 @@ export const MOCK_USERS: User[] = [
     country: Country.BRAZIL,
     region: 'São Paulo',
     progress: 45,
-    simulationCounts: { 'sc1': 1, 'sc2': 2 }
+    simulationCounts: { 'sc2': 1, 'sc3': 2 }
   },
   {
     id: 'u-ana',
@@ -52,7 +52,7 @@ export const MOCK_USERS: User[] = [
     country: Country.BRAZIL,
     region: 'São Paulo',
     progress: 88,
-    simulationCounts: { 'sc1': 3 }
+    simulationCounts: { 'sc2': 3 }
   },
   {
     id: 'u-proposta',
@@ -71,27 +71,15 @@ export const MOCK_USERS: User[] = [
 
 export const MOCK_SCENARIOS: Scenario[] = [
   {
-    id: 'sc1',
-    type: ScenarioType.ISSUE_RESOLUTION,
-    sector: Sector.DRIVE_THRU,
-    title: 'Entrega: Botijão não entregue no prazo',
-    description: 'O cliente está irritado porque agendou a entrega e o botijão ainda não chegou. Ele precisa cozinhar e quer uma solução imediata. Seu objetivo é validar dados do pedido, explicar prazos com clareza e oferecer alternativas (reagendamento, prioridade, retirada, etc.).',
-    mood: ScenarioMood.ANGRY,
-    goal: 'Resolver com rapidez, cortesia e precisão técnica.',
-    country: Country.BRAZIL,
-    timeLimit: 120,
-    agentIds: ['agt-1', 'agt-2', 'agt-3'],
-    rubric: { empathy: 40, procedure: 20, verification: 10, communication: 10, solution: 20 }
-  },
-  {
     id: 'sc2',
     type: ScenarioType.CUSTOMIZATION,
     sector: Sector.COUNTER,
     title: 'Atendimento: Dúvida de segurança e manuseio',
-    description: 'Um cliente calmo, mas preocupado, pergunta sobre segurança no uso do gás, armazenamento correto e o que fazer ao sentir cheiro de gás. Você deve demonstrar acolhimento, conhecimento das orientações e encaminhar procedimentos com clareza.',
-    mood: ScenarioMood.CALM,
-    goal: 'Orientar com segurança, reduzir ansiedade e garantir encaminhamento correto.',
-    country: 'ALL',
+    description:
+      'Cliente em tom neutro pergunta em português sobre segurança no uso do gás, armazenamento do botijão, manuseio correto e o que fazer ao sentir cheiro de gás. Você deve acolher, orientar com base nos protocolos Ultragaz e deixar claro quando é preciso acionar suporte ou emergência.',
+    mood: ScenarioMood.NEUTRAL,
+    goal: 'Orientar com segurança, clareza e encaminhamento correto, mantendo tom profissional.',
+    country: Country.BRAZIL,
     timeLimit: 180,
     agentIds: ['agt-1', 'agt-2', 'agt-5'],
     rubric: { empathy: 20, procedure: 40, verification: 20, communication: 10, solution: 10 }
@@ -101,10 +89,11 @@ export const MOCK_SCENARIOS: Scenario[] = [
     type: ScenarioType.NEW_PRODUCT,
     sector: Sector.COUNTER,
     title: 'Novo serviço: Assinatura/recorrência de entrega',
-    description: 'Um cliente pergunta sobre um serviço de recorrência para não ficar sem gás. Ele quer saber como funciona, frequência, canais de atendimento e como alterar endereço ou data. Você deve explicar de forma simples e orientar o próximo passo.',
-    mood: ScenarioMood.CALM,
+    description:
+      'Cliente em tom neutro quer entender em português o serviço de assinatura ou recorrência de entrega de gás: como contratar, frequência, canais (app, site, central), alteração de endereço ou data e regras básicas. Você deve explicar de forma simples e orientar o próximo passo.',
+    mood: ScenarioMood.NEUTRAL,
     goal: 'Explicar o serviço com clareza e orientar a contratação sem atrito.',
-    country: Country.COLOMBIA,
+    country: Country.BRAZIL,
     timeLimit: 150,
     agentIds: ['agt-1', 'agt-2'],
     rubric: { empathy: 30, procedure: 25, verification: 15, communication: 20, solution: 10 }
@@ -113,40 +102,15 @@ export const MOCK_SCENARIOS: Scenario[] = [
     id: 'sc4',
     type: ScenarioType.NEW_PRODUCT,
     sector: Sector.COUNTER,
-    title: 'Atendimento: Troca de botijão e compatibilidade',
-    description: 'Um cliente quer trocar o botijão e tem dúvidas sobre compatibilidade com o regulador e cuidados na instalação. Ele está inseguro e quer confirmação do procedimento. Você deve orientar com segurança e reforçar boas práticas.',
-    mood: ScenarioMood.CALM,
-    goal: 'Orientar corretamente e aumentar confiança do cliente na solução.',
-    country: 'ALL',
-    timeLimit: 150,
+    title: 'Academia Ultragaz (foco em revendas)',
+    description:
+      'Parceiro ou integrante de equipe de revenda pergunta em português sobre a Academia Ultragaz: trilhas para parceiros e times, incluindo Gestão Empresarial e de Excelência (módulos de cerca de 25 horas, do básico do setor de gás à gestão avançada), a Revenda-Escola com exercícios práticos para novos empreendedores conhecerem o dia a dia da operação antes de assumir o negócio, e o programa Desafio Lapidar de qualificação e reconhecimento dos parceiros. Você deve apresentar o ecossistema com clareza e indicar onde obter mais informações oficiais.',
+    mood: ScenarioMood.NEUTRAL,
+    goal: 'Explicar as trilhas da Academia com precisão, acolhimento e orientação ao próximo passo.',
+    country: Country.BRAZIL,
+    timeLimit: 180,
     agentIds: ['agt-1', 'agt-2'],
     rubric: { empathy: 25, procedure: 30, verification: 15, communication: 20, solution: 10 }
-  },
-  {
-    id: 'sc5',
-    type: ScenarioType.ISSUE_RESOLUTION,
-    sector: Sector.COUNTER,
-    title: 'Desafio Pro: Múltiplos Agentes IA',
-    description: 'Este é um cenário avançado que utiliza um motor de orquestração multiagente. Você enfrentará um cliente com personalidade variável, monitorado por um Avaliador e um Coach em tempo real. O objetivo é lidar com uma solicitação complexa (pedido, entrega, segurança e cobrança), onde cada detalhe do atendimento será analisado por diferentes IAs especializadas.',
-    mood: ScenarioMood.NEUTRAL,
-    goal: 'Demonstrar maestria operacional e atendimento de excelência sob análise de múltiplos agentes de IA.',
-    country: 'ALL',
-    timeLimit: 200,
-    agentIds: ['agt-1', 'agt-2', 'agt-3', 'agt-4'],
-    rubric: { empathy: 30, procedure: 25, verification: 15, communication: 20, solution: 10 }
-  },
-  {
-    id: 'sc6',
-    type: ScenarioType.ISSUE_RESOLUTION,
-    sector: Sector.COUNTER,
-    title: 'Inovação: Atendimento com Avatar 3D',
-    description: 'Teste de tecnologia com avatar 3D humanoide. O cliente interage em tempo real com LipSync sincronizado ao áudio gerado pela IA. Use este cenário para validar a fluidez dos movimentos faciais e a naturalidade da conversa.',
-    mood: ScenarioMood.NEUTRAL,
-    goal: 'Validar a nova interface 3D e a sincronia labial.',
-    country: 'ALL',
-    timeLimit: 150,
-    agentIds: ['agt-1', 'agt-2'],
-    rubric: { empathy: 20, procedure: 20, verification: 20, communication: 20, solution: 20 }
   }
 ];
 
@@ -155,8 +119,8 @@ export const MOCK_RESULTS: SimulationResult[] = [
     id: 'res-1',
     userId: 'u-joao',
     userName: 'João Silva',
-    scenarioId: 'sc1',
-    scenarioTitle: 'Drive-Thru: Item Faltando',
+    scenarioId: 'sc2',
+    scenarioTitle: 'Atendimento: Dúvida de segurança e manuseio',
     storeId: 'ST-001',
     storeName: 'Ultragaz Itaim',
     country: Country.BRAZIL,

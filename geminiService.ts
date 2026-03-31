@@ -4,14 +4,18 @@ import { ChatMessage, Scenario, SimulationResult, Country, ScenarioMood, Sector 
 import { SYSTEM_PROMPT_SIMULATOR } from "./constants";
 import { getGeminiApiKey } from "./geminiEnv";
 
-const apiKey = getGeminiApiKey();
+let googleGenAiSingleton: GoogleGenAI | null = null;
 
-if (!apiKey) {
-  console.error('❌ Chave do Gemini não encontrada! Configure VITE_GEMINI_API_KEY (ex.: no Netlify) e recompile.');
-  throw new Error('Chave do Gemini não configurada. Configure VITE_GEMINI_API_KEY nas variáveis de ambiente (ex.: Netlify).');
+function getGoogleGenAI(): GoogleGenAI {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('GEMINI_NOT_CONFIGURED');
+  }
+  if (!googleGenAiSingleton) {
+    googleGenAiSingleton = new GoogleGenAI({ apiKey });
+  }
+  return googleGenAiSingleton;
 }
-
-const ai = new GoogleGenAI({ apiKey });
 
 // ---- Controle de custo/quotas (importantíssimo no free tier) ----
 const ENABLE_RESPONSE_SUGGESTIONS = false; // gera UMA chamada extra por avaliação (alto custo). Deixe false por padrão.
@@ -131,7 +135,7 @@ export const connectLiveSimulation = (scenario: Scenario, callbacks: any) => {
   
   // Usar modelo que suporta live audio nativo
   // O modelo gemini-2.5-flash-native-audio-preview é específico para áudio em tempo real
-  return ai.live.connect({
+  return getGoogleGenAI().live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     callbacks,
     config: {
@@ -191,7 +195,7 @@ export const evaluatePerformance = async (scenario: Scenario, transcript: ChatMe
     try {
       console.log(`🔄 Tentando avaliar com modelo: ${model}`);
       
-      const response = await ai.models.generateContent({
+      const response = await getGoogleGenAI().models.generateContent({
         model,
         contents: evaluationPrompts[language],
         config: {
@@ -421,7 +425,7 @@ Return ONLY a JSON array with suggestions in the same order, in the format:
 
     const prompt = prompts[language];
 
-    const response = await ai.models.generateContent({
+    const response = await getGoogleGenAI().models.generateContent({
       model,
       contents: prompt,
       config: {
@@ -545,7 +549,7 @@ export const analyzeAttendantEmotions = async (videoFrames: string[]): Promise<P
     try {
       console.log(`🔄 Analisando emoções do atendente com modelo: ${model}`);
       
-      const response = await ai.models.generateContent({
+      const response = await getGoogleGenAI().models.generateContent({
         model,
         contents: [
           {
