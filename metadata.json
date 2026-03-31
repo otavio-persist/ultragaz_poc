@@ -1,0 +1,8 @@
+{
+  "name": "Ultragaz - Simulador de Treinamento",
+  "description": "Plataforma de treinamento com simulações de IA para atendimento ao cliente, segurança e processos operacionais.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

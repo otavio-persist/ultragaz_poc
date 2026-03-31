@@ -1,0 +1,19 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ultragaz">
+  <defs>
+    <linearGradient id="ugAccent" x1="44" y1="210" x2="212" y2="210" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#000fff"/>
+      <stop offset="0.55" stop-color="#00AEEF"/>
+      <stop offset="1" stop-color="#0f0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="256" height="256" rx="48" fill="#000fff"/>
+  <g>
+    <text x="128" y="122" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="44" font-weight="900" fill="#FFFFFF" letter-spacing="-1.5">
+      Ultragaz
+    </text>
+    <rect x="44" y="160" width="168" height="10" rx="5" fill="url(#ugAccent)"/>
+    <text x="128" y="202" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#D8E7FF" letter-spacing="2">
+      POC
+    </text>
+  </g>
+</svg>
