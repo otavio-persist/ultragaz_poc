@@ -984,7 +984,11 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                     {initialScenario.title}
                   </h3>
                   <p className={`max-w-md font-medium text-xs lg:text-sm leading-relaxed px-4 transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Interaja como se fosse um cliente humano real. Mantenha contato visual com a câmera ligada e siga os protocolos Ultragaz.
+                    {initialScenario.id === 'sc5'
+                      ? 'Você representa a liderança ou RH. A simulação reage como colaborador em uma conversa de desligamento. Mantenha contato visual com a câmera ligada, tom firme e respeitoso, alinhado às políticas Ultragaz.'
+                      : initialScenario.id === 'sc6'
+                        ? 'Você é o candidato. O entrevistador (IA) inicia em português e, em seguida, passa ao inglês para avaliar seu nível — responda em cada idioma quando for chamado. Mantenha contato visual e postura profissional.'
+                        : 'Interaja como se fosse um cliente humano real. Mantenha contato visual com a câmera ligada e siga os protocolos Ultragaz.'}
                   </p>
                 </div>
 

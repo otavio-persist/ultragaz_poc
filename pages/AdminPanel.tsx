@@ -1,22 +1,30 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 
 /** Defina `true` para exibir novamente a aba "Custos" no menu (admin global). */
 const SHOW_ADMIN_COSTS_TAB = false;
 import { 
-  Scenario, User, UserRole, SimulationResult, Country, Agent 
+  Scenario, User, UserRole, SimulationResult, Country, Agent, ScenarioMood 
 } from '../types';
 import { MOCK_AGENTS } from '../constants';
 import { 
   Users, Globe, BarChart3, TrendingUp,
   ChevronRight, ArrowLeft, Building2,
   DollarSign, Zap, MessageSquare, Target, Activity, ShieldCheck, Trophy, Search,
-  Bot, Plus, Save, Trash2, Edit2, X as CloseIcon
+  Bot, Plus, Save, Trash2, Edit2, X as CloseIcon, History
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, Cell, Radar, RadarChart, PolarGrid, PolarAngleAxis,
 } from 'recharts';
+import { loadTrainingHistory, type SavedTrainingRecord } from '../services/trainingHistoryStorage';
+
+const MOOD_LABEL: Record<ScenarioMood, string> = {
+  [ScenarioMood.CALM]: 'Calmo',
+  [ScenarioMood.NEUTRAL]: 'Neutro',
+  [ScenarioMood.ANGRY]: 'Irritado',
+  [ScenarioMood.FRUSTRATED]: 'Frustrado',
+};
 
 interface AdminPanelProps {
   scenarios: Scenario[];
@@ -30,7 +38,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios, agents, setAgents, users, results, currentUser }) => {
-  const [tab, setTab] = useState<'analytics' | 'finance' | 'users' | 'ranking' | 'agents' | 'trainings'>('analytics');
+  const [tab, setTab] = useState<'analytics' | 'finance' | 'users' | 'ranking' | 'agents' | 'trainings' | 'sessions'>('analytics');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isEditingAgent, setIsEditingAgent] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
@@ -38,6 +46,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios,
   const [selectedEntity, setSelectedEntity] = useState<{ type: 'user' | 'store', id: string } | null>(null);
   const [selectedResult, setSelectedResult] = useState<SimulationResult | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [trainingHistory, setTrainingHistory] = useState<SavedTrainingRecord[]>([]);
+  const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<SavedTrainingRecord | null>(null);
+
+  const refreshTrainingHistory = useCallback(() => {
+    setTrainingHistory(loadTrainingHistory());
+  }, []);
+
+  useEffect(() => {
+    refreshTrainingHistory();
+    window.addEventListener('ultragaz-training-saved', refreshTrainingHistory);
+    return () => window.removeEventListener('ultragaz-training-saved', refreshTrainingHistory);
+  }, [refreshTrainingHistory]);
+
+  useEffect(() => {
+    if (tab === 'sessions') refreshTrainingHistory();
+  }, [tab, refreshTrainingHistory]);
 
   useEffect(() => {
     if (!SHOW_ADMIN_COSTS_TAB && tab === 'finance') {
@@ -58,6 +82,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios,
     if (isGlobalAdmin) return users;
     return users.filter(u => u.storeId === currentUser.storeId && u.role === UserRole.EMPLOYEE);
   }, [users, currentUser, isGlobalAdmin]);
+
+  const filteredTrainingHistory = useMemo(() => {
+    if (isGlobalAdmin) return trainingHistory;
+    return trainingHistory.filter((r) => r.storeId === currentUser.storeId);
+  }, [trainingHistory, isGlobalAdmin, currentUser.storeId]);
 
   // Ranking de Funcionários (Específico da Unidade ou Global)
   const ranking = useMemo(() => {
@@ -163,6 +192,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios,
           </button>
           <button onClick={() => setTab('trainings')} className={`whitespace-nowrap px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'trainings' ? 'bg-white shadow-md text-[#000fff]' : 'text-gray-400 hover:text-gray-600'}`}>
             Treinos
+          </button>
+          <button onClick={() => setTab('sessions')} className={`whitespace-nowrap px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'sessions' ? 'bg-white shadow-md text-[#000fff]' : 'text-gray-400 hover:text-gray-600'}`}>
+            Histórico
           </button>
           {isGlobalAdmin && SHOW_ADMIN_COSTS_TAB && (
             <button onClick={() => setTab('finance')} className={`whitespace-nowrap px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'finance' ? 'bg-white shadow-md text-[#000fff]' : 'text-gray-400 hover:text-gray-600'}`}>
@@ -1004,6 +1036,239 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios,
                         </div>
                       </section>
                    </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'sessions' && (
+          <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 relative">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3 tracking-tighter">
+                <History className="text-[#000fff]" /> Histórico de conversas (Salvar e Voltar)
+              </h2>
+              <p className="text-sm text-gray-500 font-medium">
+                {filteredTrainingHistory.length} registro{filteredTrainingHistory.length === 1 ? '' : 's'} nesta visão
+              </p>
+            </div>
+
+            {filteredTrainingHistory.length === 0 ? (
+              <div className="bg-white rounded-[40px] border border-gray-100 p-16 text-center text-gray-400">
+                <MessageSquare size={48} className="mx-auto mb-4 opacity-40" />
+                <p className="font-black text-lg text-gray-600 mb-2">Nenhuma conversa salva ainda</p>
+                <p className="text-sm">Os treinos aparecem aqui quando o colaborador finaliza e clica em <strong>Salvar e Voltar</strong>.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/80">
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Data</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Colaborador</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Cenário</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest text-center">Média</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Loja</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredTrainingHistory.map((rec) => (
+                        <tr key={rec.id} className="hover:bg-[#000fff]/5 transition-colors">
+                          <td className="px-6 py-4 text-xs font-bold text-gray-600 whitespace-nowrap">
+                            {new Date(rec.savedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm font-black text-gray-900">{rec.userName}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm font-bold text-gray-700 line-clamp-2">{rec.scenarioTitle}</span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className="inline-flex px-3 py-1 rounded-full bg-[#000fff]/10 text-[#000fff] text-xs font-black">
+                              {rec.mediaGeralUltragaz}%
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-xs font-bold text-gray-500">{rec.storeName}</td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedHistoryRecord(rec)}
+                              className="bg-white border border-gray-200 px-4 py-2 rounded-xl text-[10px] font-black text-gray-900 uppercase tracking-widest hover:border-[#000fff] hover:text-[#000fff] transition-all"
+                            >
+                              Ver detalhes
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {selectedHistoryRecord && (
+              <div
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                role="dialog"
+                aria-modal="true"
+                onClick={() => setSelectedHistoryRecord(null)}
+              >
+                <div
+                  className="bg-white rounded-[32px] shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/80 shrink-0">
+                    <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sessão salva</p>
+                      <h3 className="text-xl font-black text-gray-900 tracking-tight">{selectedHistoryRecord.scenarioTitle}</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {selectedHistoryRecord.userName} · {selectedHistoryRecord.storeName} ·{' '}
+                        {new Date(selectedHistoryRecord.savedAt).toLocaleString('pt-BR')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHistoryRecord(null)}
+                      className="p-2 rounded-full hover:bg-gray-200 text-gray-500 transition-colors"
+                      aria-label="Fechar"
+                    >
+                      <CloseIcon size={22} />
+                    </button>
+                  </div>
+
+                  <div className="overflow-y-auto p-6 space-y-8">
+                    <section>
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Dossiê do Diálogo</h4>
+                      <div className="space-y-3 max-h-64 overflow-y-auto rounded-2xl bg-gray-50 p-4 border border-gray-100">
+                        {selectedHistoryRecord.dossieDialogo.length === 0 ? (
+                          <p className="text-sm text-gray-400 italic">Sem mensagens.</p>
+                        ) : (
+                          selectedHistoryRecord.dossieDialogo.map((m, i) => (
+                            <div
+                              key={`${m.timestamp}-${i}`}
+                              className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div
+                                className={`max-w-[90%] px-4 py-2 rounded-2xl text-xs font-bold ${
+                                  m.role === 'user' ? 'bg-[#000fff]/10 text-gray-900' : 'bg-white border border-gray-100 text-gray-700'
+                                }`}
+                              >
+                                <span className="text-[9px] font-black uppercase text-gray-400 block mb-1">
+                                  {m.role === 'user' ? 'Atendente' : 'Cliente / IA'}
+                                </span>
+                                {m.content}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </section>
+
+                    <section>
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Mapa de Sentimento do Atendente</h4>
+                      {selectedHistoryRecord.mapaSentimentoAtendente ? (
+                        <div className="rounded-2xl bg-gray-50 p-4 border border-gray-100 space-y-2 text-sm">
+                          <p>
+                            <span className="font-black text-gray-600">Sorriso:</span>{' '}
+                            {selectedHistoryRecord.mapaSentimentoAtendente.smilePercentage}%
+                          </p>
+                          <p>
+                            <span className="font-black text-gray-600">Contato visual:</span>{' '}
+                            {selectedHistoryRecord.mapaSentimentoAtendente.eyeContactPercentage}%
+                          </p>
+                          <p>
+                            <span className="font-black text-gray-600">Humor geral:</span>{' '}
+                            {selectedHistoryRecord.mapaSentimentoAtendente.overallMood}
+                          </p>
+                          <p className="text-gray-700 leading-relaxed">{selectedHistoryRecord.mapaSentimentoAtendente.feedback}</p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic">Sem análise de vídeo para esta sessão.</p>
+                      )}
+                    </section>
+
+                    <section>
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Oportunidades de Melhoria</h4>
+                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap rounded-2xl bg-amber-50/80 p-4 border border-amber-100">
+                        {selectedHistoryRecord.oportunidadesMelhoria || '—'}
+                      </p>
+                    </section>
+
+                    <section>
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Feedback do Gerente Virtual</h4>
+                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap rounded-2xl bg-[#000fff]/5 p-4 border border-[#000fff]/10">
+                        {selectedHistoryRecord.feedbackGerenteVirtual || '—'}
+                      </p>
+                    </section>
+
+                    <section>
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Descrição do Atendimento</h4>
+                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap rounded-2xl bg-gray-50 p-4 border border-gray-100">
+                        {selectedHistoryRecord.scenarioDescription || '—'}
+                      </p>
+                    </section>
+
+                    <section>
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Média Geral Ultragaz</h4>
+                      <p className="text-4xl font-black text-[#000fff]">{selectedHistoryRecord.mediaGeralUltragaz}%</p>
+                    </section>
+
+                    <section>
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Mapa de Competências</h4>
+                      <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadarChart data={selectedHistoryRecord.mapaCompetencias} cx="50%" cy="50%" outerRadius="75%">
+                            <PolarGrid stroke="#e5e7eb" />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#6b7280', fontSize: 10, fontWeight: 700 }} />
+                            <Radar name="Competências" dataKey="val" stroke="#000fff" fill="#000fff" fillOpacity={0.35} />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </section>
+
+                    <section>
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Análise de Sentimento</h4>
+                      <div className="rounded-2xl bg-gray-50 p-4 border border-gray-100 space-y-2 text-sm">
+                        <p>
+                          <span className="font-black text-gray-600">Humor inicial:</span>{' '}
+                          {MOOD_LABEL[selectedHistoryRecord.analiseSentimento.initialMood] ?? selectedHistoryRecord.analiseSentimento.initialMood}
+                        </p>
+                        <p>
+                          <span className="font-black text-gray-600">Humor final:</span>{' '}
+                          {MOOD_LABEL[selectedHistoryRecord.analiseSentimento.finalMood] ?? selectedHistoryRecord.analiseSentimento.finalMood}
+                        </p>
+                        <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                          {selectedHistoryRecord.analiseSentimento.sentimentEvolution || '—'}
+                        </p>
+                      </div>
+                    </section>
+
+                    {selectedHistoryRecord.realTimePrediction && (
+                      <section>
+                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Predição em tempo real (última)</h4>
+                        <div className="rounded-2xl bg-gray-50 p-4 border border-gray-100 text-sm space-y-1">
+                          <p>
+                            <span className="font-black">Nota prevista:</span> {selectedHistoryRecord.realTimePrediction.predictedScore}%
+                          </p>
+                          <p>
+                            <span className="font-black">Confiança:</span> {selectedHistoryRecord.realTimePrediction.confidence}%
+                          </p>
+                          <p>
+                            <span className="font-black">Trajetória:</span> {selectedHistoryRecord.realTimePrediction.trajectory}
+                          </p>
+                          {selectedHistoryRecord.realTimePrediction.recommendations?.length ? (
+                            <ul className="list-disc pl-5 mt-2 space-y-1 text-gray-700">
+                              {selectedHistoryRecord.realTimePrediction.recommendations.map((t, i) => (
+                                <li key={i}>{t}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </div>
+                      </section>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

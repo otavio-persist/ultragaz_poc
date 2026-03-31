@@ -111,6 +111,34 @@ export const MOCK_SCENARIOS: Scenario[] = [
     timeLimit: 180,
     agentIds: ['agt-1', 'agt-2'],
     rubric: { empathy: 25, procedure: 30, verification: 15, communication: 20, solution: 10 }
+  },
+  {
+    id: 'sc5',
+    type: ScenarioType.ISSUE_RESOLUTION,
+    sector: Sector.MANAGEMENT,
+    title: 'Liderança: conversa difícil de desligamento',
+    description:
+      'Você (treinando) é liderança ou RH da Ultragaz conduzindo um desligamento respeitoso e alinhado às políticas internas. A simulação coloca a IA no papel de um colaborador afetado: em estado emocional frágil, surpreso, questiona o motivo com firmeza, menciona tempo de empresa, responsabilidades familiares e pode pedir reconsideração ou encaminhamento. Objetivo: comunicar com clareza e empatia, evitar promessas indevidas, manter tom profissional e encaminhar próximos passos (documentação, desligamento, suporte onde aplicável) sem escalada desnecessária.',
+    mood: ScenarioMood.FRUSTRATED,
+    goal: 'Conduzir a conversa de desligamento com dignidade, clareza, empatia e aderência procedimental.',
+    country: Country.BRAZIL,
+    timeLimit: 240,
+    agentIds: ['agt-1', 'agt-2'],
+    rubric: { empathy: 35, procedure: 25, verification: 15, communication: 25, solution: 10 }
+  },
+  {
+    id: 'sc6',
+    type: ScenarioType.CUSTOMIZATION,
+    sector: Sector.MANAGEMENT,
+    title: 'Entrevista em seleção: português e inglês',
+    description:
+      'Você é o CANDIDATO a uma posição na operação Ultragaz (atendimento, balcão ou apoio ao cliente). O entrevistador (IA) conduz a conversa: começa em português com perguntas de experiência, motivação e situações de trabalho; em um momento anuncia que fará perguntas em inglês para avaliar seu nível e faz perguntas objetivas em inglês; pode voltar ao português para encerrar. Responda de forma clara e profissional em cada idioma quando for solicitado.',
+    mood: ScenarioMood.NEUTRAL,
+    goal: 'Demonstrar comunicação profissional em português e responder com segurança à etapa em inglês.',
+    country: Country.BRAZIL,
+    timeLimit: 240,
+    agentIds: ['agt-1', 'agt-2'],
+    rubric: { empathy: 15, procedure: 20, verification: 15, communication: 35, solution: 15 }
   }
 ];
 

@@ -109,30 +109,92 @@ const updateMoodTool: FunctionDeclaration = {
   }
 };
 
+/** Cenário em que a IA interpreta colaborador em conversa de desligamento (quem treina é a liderança). */
+const isDismissalLeadershipScenario = (scenario: Scenario) => scenario.id === 'sc5';
+
+/** Entrevista: IA = entrevistador (inicia em PT e muda para EN para avaliar o candidato). */
+const isBilingualInterviewScenario = (scenario: Scenario) => scenario.id === 'sc6';
+
 export const connectLiveSimulation = (scenario: Scenario, callbacks: any) => {
   const language = detectScenarioLanguage(scenario);
+  const dismissal = isDismissalLeadershipScenario(scenario);
+  const interviewBilingual = isBilingualInterviewScenario(scenario);
   
   // Instruções de idioma
-  const languageInstructions: Record<string, string> = {
-    'português': 'IMPORTANTE: Você DEVE falar APENAS em PORTUGUÊS. Todas as suas respostas devem ser em português brasileiro.',
-    'español': 'IMPORTANTE: Debes hablar SOLO en ESPAÑOL. Todas tus respuestas deben ser en español latinoamericano.',
-    'english': 'IMPORTANTE: You MUST speak ONLY in ENGLISH. All your responses must be in English.'
-  };
+  const languageInstructions: Record<string, string> = interviewBilingual
+    ? {
+        'português':
+          'IDIOMAS (OBRIGATÓRIO): Inicie e mantenha a primeira parte SOMENTE em português brasileiro. Depois de 2 a 4 perguntas/respostas em português, diga explicitamente que fará uma etapa em inglês para avaliar o nível do candidato — então fale e pergunte em INGLÊS (2 a 4 perguntas curtas, vocabulário profissional acessível). Ouça as respostas do candidato em inglês; se necessário, uma pergunta de esclarecimento em inglês. Em seguida, volte ao PORTUGUÊS para encerrar ou feedback. Não misture PT e EN na mesma frase; troque de idioma de forma anunciada.\n\nRITMO (CRÍTICO): Assim que o candidato terminar de falar, responda sem pausa longa. Por turno use no máximo 2–3 frases curtas OU uma pergunta direta; evite monólogos, introduções repetidas e “deixe-me pensar” em voz alta. Priorize agilidade e naturalidade de entrevista real.',
+        'español':
+          'IDIOMAS: Empieza en portugués brasileño; luego anuncia una sección en INGLÉS para evaluar al candidato; finalmente vuelve al portugués. No mezcles idiomas en la misma frase.',
+        'english':
+          'LANGUAGES: Start in Brazilian Portuguese; then announce an ENGLISH section to assess the candidate; finish back in Portuguese. Do not mix languages in one sentence.',
+      }
+    : {
+        'português': 'IMPORTANTE: Você DEVE falar APENAS em PORTUGUÊS. Todas as suas respostas devem ser em português brasileiro.',
+        'español': 'IMPORTANTE: Debes hablar SOLO en ESPAÑOL. Todas tus respuestas deben ser en español latinoamericano.',
+        'english': 'IMPORTANTE: You MUST speak ONLY in ENGLISH. All your responses must be in English.'
+      };
   
   // Instruções de início da conversa por idioma
-  const startInstructions: Record<string, string> = {
-    'português': 'VOCÊ É O CLIENTE. ESPERE O FUNCIONÁRIO INICIAR A CONVERSA. NÃO fale primeiro, apenas responda quando o funcionário se dirigir a você.',
-    'español': 'TÚ ERES EL CLIENTE. ESPERA A QUE EL EMPLEADO INICIE LA CONVERSACIÓN. NO hables primero, solo responde cuando el empleado se dirija a ti.',
-    'english': 'YOU ARE THE CUSTOMER. WAIT FOR THE EMPLOYEE TO START THE CONVERSATION. DO NOT speak first, only respond when the employee addresses you.'
-  };
+  const startInstructions: Record<string, string> = interviewBilingual
+    ? {
+        'português':
+          'VOCÊ É O ENTREVISTADOR (RH ou gestor Ultragaz). Quem fala com você é o CANDIDATO ao emprego. Você DEVE INICIAR a entrevista em português: cumprimente, apresente-se brevemente e explique que haverá uma parte da conversa em português e depois um momento em inglês para avaliar o nível. Fale primeiro — não espere o candidato abrir.',
+        'español':
+          'ERES el ENTREVISTADOR. El candidato está al otro lado. DEBES EMPEZAR tú en portugués con el saludo y la estructura de la entrevista.',
+        'english':
+          'YOU ARE THE INTERVIEWER. The candidate is on the other side. YOU MUST START in Portuguese with greeting and interview structure.',
+      }
+    : dismissal
+    ? {
+        'português':
+          'VOCÊ É O COLABORADOR que está prestes a ouvir/complementar uma conversa de DESLIGAMENTO conduzida pela liderança/RH da Ultragaz. A pessoa que fala com você neste treino é o(A) GESTOR(A) ou RH. ESPERE A LIDERANÇA INICIAR. NÃO fale primeiro — só responda quando ela se dirigir a você.',
+        'español':
+          'ERES el COLABORADOR en una conversación de DESPIDO liderada por el equipo de gestión/RR.HH. de Ultragaz. Quien habla contigo es el gestor o RR.HH. ESPERA a que la liderazgo inicie. NO hables primero: solo responde cuando te hablen.',
+        'english':
+          'YOU ARE THE TEAM MEMBER in a TERMINATION conversation led by Ultragaz management/HR. The person training with you is the MANAGER or HR. WAIT for leadership to start. DO NOT speak first—only respond when they address you.',
+      }
+    : {
+        'português': 'VOCÊ É O CLIENTE. ESPERE O FUNCIONÁRIO INICIAR A CONVERSA. NÃO fale primeiro, apenas responda quando o funcionário se dirigir a você.',
+        'español': 'TÚ ERES EL CLIENTE. ESPERA A QUE EL EMPLEADO INICIE LA CONVERSACIÓN. NO hables primero, solo responde cuando el empleado se dirija a ti.',
+        'english': 'YOU ARE THE CUSTOMER. WAIT FOR THE EMPLOYEE TO START THE CONVERSATION. DO NOT speak first, only respond when the employee addresses you.'
+      };
   
   // Instruções de missão por idioma
-  const missionInstructions: Record<string, string> = {
-    'português': 'Sua missão é reagir ao funcionário quando ele falar com você. Se ele for empático, mude seu humor usando \'updateCustomerMood\'. NÃO inicie a conversa - apenas responda quando o funcionário se dirigir a você primeiro.',
-    'español': 'Tu misión es reaccionar al empleado cuando él te hable. Si él es empático, cambia tu estado de ánimo usando \'updateCustomerMood\'. NO inicies la conversación - solo responde cuando el empleado se dirija a ti primero.',
-    'english': 'Your mission is to react to the employee when they speak to you. If they are empathetic, change your mood using \'updateCustomerMood\'. DO NOT start the conversation - only respond when the employee addresses you first.'
-  };
+  const missionInstructions: Record<string, string> = interviewBilingual
+    ? {
+        'português':
+          "Conduza a entrevista: em português, pergunte experiência, motivação para a Ultragaz, situação de trabalho em equipe ou atendimento — uma pergunta por vez. Depois faça a transição anunciada ao inglês com perguntas curtas (experiência, difficult situation, serviço ao cliente). Na fase em inglês mantenha perguntas objetivas; ao final, volte ao português. Use 'updateCustomerMood' só se fizer sentido. Não enrolar entre perguntas.",
+        'español':
+          'Similar: PT primero, luego inglés anunciado, luego cierre en portugués.',
+        'english':
+          'Same flow: Portuguese first, then announced English assessment, then close in Portuguese.',
+      }
+    : dismissal
+    ? {
+        'português':
+          "Sua missão é reagir como colaborador real: choque, tristeza ou indignação; questione motivo, prazos e consequências; pode pedir segunda chance ou contestar com intensidade moderada. Se a liderança for clara e empática, você pode amenizar (use 'updateCustomerMood'). NÃO inicie a conversa.",
+        'español':
+          "Tu misión es reaccionar como colaborador real: shock, tristeza o indignación; pregunta motivos y consecuencias; puedes pedir otra oportunidad. Si la gestión es clara y empática, puedes suavizar (usa 'updateCustomerMood'). NO inicies la conversación.",
+        'english':
+          "React like a real team member: shock, sadness, or frustration; ask about reasons and next steps; you may push back or ask for another chance. If management is clear and empathetic, you may soften (use 'updateCustomerMood'). DO NOT start the conversation.",
+      }
+    : {
+        'português': 'Sua missão é reagir ao funcionário quando ele falar com você. Se ele for empático, mude seu humor usando \'updateCustomerMood\'. NÃO inicie a conversa - apenas responda quando o funcionário se dirigir a você primeiro.',
+        'español': 'Tu misión es reaccionar al empleado cuando él te hable. Si él es empático, cambia tu estado de ánimo usando \'updateCustomerMood\'. NO inicies la conversación - solo responde cuando el empleado se dirija a ti primero.',
+        'english': 'Your mission is to react to the employee when they speak to you. If they are empathetic, change your mood using \'updateCustomerMood\'. DO NOT start the conversation - only respond when the employee addresses you first.'
+      };
   
+  // Entrevista: respostas mais curtas = menos latência perceptível no áudio da Live API
+  const interviewLiveTuning = interviewBilingual
+    ? {
+        maxOutputTokens: 340,
+        temperature: 0.78,
+        topP: 0.92,
+      }
+    : {};
+
   // Usar modelo que suporta live audio nativo
   // O modelo gemini-2.5-flash-native-audio-preview é específico para áudio em tempo real
   return getGoogleGenAI().live.connect({
@@ -146,12 +208,33 @@ export const connectLiveSimulation = (scenario: Scenario, callbacks: any) => {
         },
       },
       tools: [{ functionDeclarations: [updateMoodTool] }],
+      ...interviewLiveTuning,
       systemInstruction: `${SYSTEM_PROMPT_SIMULATOR}\n\n
       ${languageInstructions[language]}\n\n
       ${startInstructions[language]}
       Humor inicial / Initial mood / Estado de ánimo inicial: ${scenario.mood}.
       ${missionInstructions[language]}\n\n
-      IMPORTANTE: Você é um cliente da Ultragaz no seguinte cenário:
+      ${
+        interviewBilingual
+          ? `IMPORTANTE: Você é o ENTREVISTADOR; o usuário é o CANDIDATO.
+      Título: ${scenario.title}
+      Descrição: ${scenario.description}
+      
+      REGRA CRÍTICA: VOCÊ INICIA a conversa em português (cumprimento breve + primeira pergunta). O candidato responde — você reage rápido com a próxima pergunta ou comentário curto (sem discurso).
+      Exemplos de perguntas em inglês (use variações curtas): "Tell me briefly about your experience in customer service." / "How would you explain our delivery service to a new customer?" / "Describe a time you had to deal with a difficult situation at work."
+      Mantenha tom cordial e profissional. ÁUDIO: fale em ritmo de entrevista (sem longos silêncios entre um turno e outro).`
+          : dismissal
+          ? `IMPORTANTE: Você interpreta um COLABORADOR da operação Ultragaz neste cenário (não é atendimento ao cliente final).
+      Título: ${scenario.title}
+      Descrição: ${scenario.description}
+      
+      REGRA CRÍTICA: NÃO inicie a conversa. ESPERE a liderança/RH falar primeiro. Quando ela comunicar o desligamento ou abrir a conversa:
+      - Demonstre impacto emocional realista; questione o motivo; mencione tempo de casa ou impacto familiar se fizer sentido.
+      - Não use ameaças criminosas nem insultos extremos; mantenha a cena profissional e treinável.
+      - Se a liderança for respeitosa e clara nas próximas etapas, você pode evoluir o humor (updateCustomerMood).
+      
+      NUNCA fale primeiro. Espere a liderança iniciar.`
+          : `IMPORTANTE: Você é um cliente da Ultragaz no seguinte cenário:
       Título: ${scenario.title}
       Descrição: ${scenario.description}
       
@@ -160,7 +243,8 @@ export const connectLiveSimulation = (scenario: Scenario, callbacks: any) => {
       - Se o cenário é sobre pedido errado, quando o funcionário perguntar como pode ajudar, você menciona que recebeu o pedido errado.
       - Se o cenário é sobre novo produto, quando o funcionário perguntar o que você deseja, você pergunta sobre o novo produto.
       
-      NUNCA fale primeiro. Sempre espere o funcionário iniciar a conversa.`,
+      NUNCA fale primeiro. Sempre espere o funcionário iniciar a conversa.`
+      }`,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
     },
@@ -179,12 +263,15 @@ export const evaluatePerformance = async (scenario: Scenario, transcript: ChatMe
   ];
   const history = transcript.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
   const language = detectScenarioLanguage(scenario);
-  
+  const interviewEvalNote = isBilingualInterviewScenario(scenario)
+    ? '\n\nContexto: ENTREVISTA bilíngue. USER = candidato; ASSISTANT = entrevistador. Avalie desempenho em português e na parte em inglês (clareza, vocabulário e adequação profissional).'
+    : '';
+
   // Prompts de avaliação por idioma
   const evaluationPrompts: Record<string, string> = {
-    'português': `Avalie o diálogo de treinamento Ultragaz.\n\nCenário: ${scenario.title}\nHistórico:\n${history}`,
-    'español': `Evalúa el diálogo de entrenamiento Ultragaz.\n\nEscenario: ${scenario.title}\nHistorial:\n${history}`,
-    'english': `Evaluate the Ultragaz training dialogue.\n\nScenario: ${scenario.title}\nHistory:\n${history}`
+    'português': `Avalie o diálogo de treinamento Ultragaz.\n\nCenário: ${scenario.title}\nHistórico:\n${history}${interviewEvalNote}`,
+    'español': `Evalúa el diálogo de entrenamiento Ultragaz.\n\nEscenario: ${scenario.title}\nHistorial:\n${history}${interviewEvalNote}`,
+    'english': `Evaluate the Ultragaz training dialogue.\n\nScenario: ${scenario.title}\nHistory:\n${history}${interviewEvalNote}`
   };
   
   let lastError: any = null;

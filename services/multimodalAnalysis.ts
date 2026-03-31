@@ -8,6 +8,34 @@ import { ChatMessage } from "../types";
 import { processFrameWithMediaPipe, clearMicroExpressionHistory } from "./mediapipeAnalysis";
 import { getGeminiApiKey } from "../geminiEnv";
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Reintenta quando o MediaPipe ainda processa outro frame (captura periódica + fim de sessão em paralelo). */
+async function processFrameWithMediaPipeReliable(
+  frameBase64: string
+): Promise<Awaited<ReturnType<typeof processFrameWithMediaPipe>>> {
+  const delaysMs = [0, 100, 200, 350, 550];
+  let lastError: unknown;
+  for (let i = 0; i < delaysMs.length; i++) {
+    if (delaysMs[i] > 0) await sleepMs(delaysMs[i]);
+    try {
+      return await processFrameWithMediaPipe(frameBase64);
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const busy =
+        msg.includes('ocupado') ||
+        msg.toLowerCase().includes('busy') ||
+        msg.toLowerCase().includes('currently processing');
+      if (busy && i < delaysMs.length - 1) continue;
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
 const apiKey = getGeminiApiKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
@@ -101,7 +129,7 @@ export async function analyzeVideoFrames(
   try {
     const lastFrame = frames[frames.length - 1]; // Processar último frame (mais recente)
     console.log('🔍 Tentando processar frame com MediaPipe...');
-    const mediaPipeResults = await processFrameWithMediaPipe(lastFrame);
+    const mediaPipeResults = await processFrameWithMediaPipeReliable(lastFrame);
     console.log('✅ MediaPipe processou com sucesso:', {
       microExpressions: mediaPipeResults.microExpressions.length,
       eyeTension: mediaPipeResults.facialLandmarks.eyeTension,

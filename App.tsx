@@ -11,6 +11,7 @@ import { Scenario, User, UserRole, SimulationResult, Agent } from './types';
 import { MOCK_SCENARIOS, MOCK_USERS, MOCK_RESULTS, MOCK_AGENTS } from './constants';
 import { isGeminiConfigured } from './geminiEnv';
 import { TrainingUnavailable } from './components/TrainingUnavailable';
+import { appendTrainingRecord, buildTrainingRecordFromResult } from './services/trainingHistoryStorage';
 
 const SESSION_USER_ID_KEY = 'ultragaz_session_user_id';
 
@@ -114,6 +115,11 @@ const App: React.FC = () => {
         date: new Date()
       };
       setResults(prev => [...prev, enrichedResult]);
+      try {
+        appendTrainingRecord(buildTrainingRecordFromResult(enrichedResult, selectedScenario));
+      } catch {
+        /* ignore storage errors */
+      }
     }
     setCurrentPage('dashboard');
     setSelectedScenario(null);
