@@ -13,6 +13,12 @@ type SlideContent = {
   highlight?: string;
 };
 
+/** Mesmo degradê da área de login/senha (Login.tsx) */
+const LOGIN_PANEL_GRADIENT = 'linear-gradient(90deg, #0ff 60%, #0f0 100%)';
+
+/** Fonte: https://bipbrasil.com.br/wp-content/uploads/2022/12/logo-bip-consulting-red.png */
+const BIP_LOGO_SRC = '/bip-logo.png';
+
 const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
   const { language } = useLanguage();
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -48,7 +54,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           title: 'Criação de treinamentos com um simples prompt',
           subtitle: 'Feature principal',
           bullets: [
-            'O time descreve o contexto — ex.: “Cliente irritado no drive-thru por item faltando”',
+            'O time descreve o contexto — ex.: “Cliente preocupado com segurança no manuseio do botijão”',
             'A plataforma gera: contexto do cenário e perfil do cliente (emoção, comportamento)',
             'Jornada de interação e critérios de avaliação',
           ],
@@ -71,7 +77,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           bullets: [
             'Conversa ao vivo (voz ou texto)',
             'Expressões faciais e emoções',
-            'Cenários dinâmicos: erro de pedido, alergia, reclamação, etc.',
+            'Cenários dinâmicos: entrega, segurança, assinatura/recorrência, revendas (Academia), reclamações, etc.',
           ],
           highlight: 'Mais próximo da operação real → maior retenção',
         },
@@ -81,9 +87,9 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           bullets: [
             'Cada interação avaliada nos 5 pilares: Empatia, Procedimento, Verificação, Comunicação e Solução',
             'Alinhado com o que medimos na operação',
-            'Conexão com RGM: melhor experiência → maior percepção de valor → mais visitas e vendas',
+            'Conexão com a gestão: melhor atendimento → maior confiança do consumidor → mais fidelidade e resultado',
           ],
-          highlight: 'Medimos o que importa na loja',
+          highlight: 'Medimos o que importa na operação Ultragaz',
         },
         {
           title: 'Aprendizado acelerado',
@@ -101,7 +107,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           bullets: [
             'Treinamento melhor → execução melhor → resultado melhor',
             'Melhora na experiência do cliente',
-            'Aumento de Guest Count (GC) e ticket médio',
+            'Maior satisfação do cliente, retenção e atendimentos resolvidos com padrão Ultragaz',
             'Redução de erros operacionais',
           ],
           highlight: 'Experiência como driver de valor no sistema Ultragaz',
@@ -132,7 +138,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           subtitle: 'Por que agora?',
           bullets: [
             'Aumento da complexidade operacional',
-            'Mais canais (MOP, Delivery, etc.)',
+            'Mais canais (app, central de atendimento, revendas, etc.)',
             'Maior exigência de experiência',
           ],
           highlight: 'Treinamento tradicional não acompanha essa evolução',
@@ -177,7 +183,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           title: 'Creación de entrenamientos con un simple prompt',
           subtitle: 'Feature principal',
           bullets: [
-            'El equipo describe el contexto — ej.: “Cliente molesto en drive-thru por item faltante”',
+            'El equipo describe el contexto — ej.: “Cliente preocupado por seguridad en el manejo del cilindro”',
             'La plataforma genera: contexto del escenario y perfil del cliente (emoción, comportamiento)',
             'Journey de interacción y criterios de evaluación',
           ],
@@ -200,7 +206,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           bullets: [
             'Conversación en vivo (voz o texto)',
             'Expresiones faciales y emociones',
-            'Escenarios dinámicos: error de pedido, alergia, reclamación, etc.',
+            'Escenarios dinámicos: entrega, seguridad, suscripción/recurrencia, revendedores (Academia), reclamos, etc.',
           ],
           highlight: 'Más cerca de la operación real → mayor retención',
         },
@@ -210,9 +216,9 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           bullets: [
             'Cada interacción evaluada en 5 pilares: Empatía, Procedimiento, Verificación, Comunicación y Solución',
             'Alineado con lo que medimos en operación',
-            'Conexión con RGM: mejor experiencia → mayor percepción de valor → más visitas y ventas',
+            'Conexión con la gestión: mejor atención → mayor confianza del consumidor → más fidelidad y resultado',
           ],
-          highlight: 'Medimos lo que importa en tienda',
+          highlight: 'Medimos lo que importa en la operación Ultragaz',
         },
         {
           title: 'Aprendizaje acelerado',
@@ -230,7 +236,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           bullets: [
             'Mejor entrenamiento → mejor ejecución → mejor resultado',
             'Mejora en la experiencia del cliente',
-            'Aumento de Guest Count (GC) y ticket medio',
+            'Mayor satisfacción del cliente, retención y atenciones resueltas con estándar Ultragaz',
             'Reducción de errores operativos',
           ],
           highlight: 'La experiencia como driver de valor en Ultragaz',
@@ -261,7 +267,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           subtitle: '¿Por qué ahora?',
           bullets: [
             'Mayor complejidad operativa',
-            'Más canales (MOP, Delivery, etc.)',
+            'Más canales (app, central de atención, revendedores, etc.)',
             'Mayor exigencia de experiencia',
           ],
           highlight: 'El entrenamiento tradicional no sigue este ritmo',
@@ -288,7 +294,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
             'Limited personalization and real simulation',
           ],
           highlight:
-            'Experience is a value driver — it shapes guest perception and results',
+            'Experience is a value driver — it shapes customer perception and business results',
         },
         {
           title: 'AI-Powered Training Platform',
@@ -306,8 +312,8 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           title: 'Training creation with a simple prompt',
           subtitle: 'Main feature',
           bullets: [
-            'Teams describe context — e.g. “Angry drive-thru guest, missing item”',
-            'The platform generates: scenario context and guest profile (emotion, behavior)',
+            'Teams describe context — e.g. “Customer worried about safe handling of the cylinder”',
+            'The platform generates: scenario context and customer profile (emotion, behavior)',
             'Interaction journey and evaluation criteria',
           ],
           highlight: 'Less build time, more scale',
@@ -324,12 +330,12 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           highlight: 'AI aligned with Ultragaz way of operating',
         },
         {
-          title: 'Real-time simulation (like a real guest)',
+          title: 'Real-time simulation (like a real customer)',
           subtitle: 'Realistic experience',
           bullets: [
             'Live conversation (voice or text)',
             'Facial expressions and emotions',
-            'Dynamic scenarios: wrong order, allergy, complaint, etc.',
+            'Dynamic scenarios: delivery, safety, subscription/recurrence, resellers (Academy), complaints, etc.',
           ],
           highlight: 'Closer to real operations → stronger retention',
         },
@@ -339,9 +345,9 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           bullets: [
             'Each interaction scored on 5 pillars: Empathy, Procedure, Verification, Communication, Solution',
             'Aligned with what we measure in operations',
-            'Tie to RGM: better experience → stronger perceived value → more visits and sales',
+            'Tie to management: better service → stronger customer trust → loyalty and commercial results',
           ],
-          highlight: 'We measure what matters in the restaurant',
+          highlight: 'We measure what matters in Ultragaz operations',
         },
         {
           title: 'Faster learning',
@@ -349,7 +355,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           bullets: [
             'After every simulation: overall score and improvement areas',
             'Behavior analysis',
-            'Crew evolution over time',
+            'Team member progress over time',
           ],
           highlight: 'Learn now — not weeks later',
         },
@@ -358,8 +364,8 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           subtitle: 'Business',
           bullets: [
             'Better training → better execution → better results',
-            'Better guest experience',
-            'Higher Guest Count (GC) and average check',
+            'Better customer experience',
+            'Higher satisfaction, retention, and issues resolved to Ultragaz standards',
             'Fewer operational errors',
           ],
           highlight: 'Experience as a value driver in the Ultragaz system',
@@ -390,7 +396,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           subtitle: 'Why now?',
           bullets: [
             'Rising operational complexity',
-            'More channels (MOP, Delivery, etc.)',
+            'More channels (app, contact center, resellers, etc.)',
             'Higher experience expectations',
           ],
           highlight: 'Traditional training can’t keep up',
@@ -431,24 +437,52 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
         : 'Ultragaz Proposal';
 
   return (
-    <div className="fixed inset-0 z-[100] bg-white flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-[100] flex flex-col overflow-hidden"
+      style={{ background: LOGIN_PANEL_GRADIENT }}
+    >
+      {/* Marca d'água NDA */}
+      <div
+        className="pointer-events-none fixed inset-0 z-[96] flex items-center justify-center overflow-hidden"
+        aria-hidden
+      >
+        <p className="max-w-[95vw] text-center select-none text-[clamp(1.75rem,7vw,4.5rem)] font-black uppercase leading-none tracking-tighter text-white/[0.22] shadow-sm [text-shadow:0_1px_0_rgba(0,0,0,0.06)] rotate-[-14deg] px-4">
+          NDA (Acordo de Não Divulgação)
+        </p>
+      </div>
+
+      {/* BIP + Here to Dare — canto inferior esquerdo */}
+      <div
+        className="pointer-events-none fixed bottom-5 left-5 z-[108] flex max-w-[min(85vw,280px)] flex-col gap-2 md:bottom-8 md:left-8"
+        aria-hidden
+      >
+        <img
+          src={BIP_LOGO_SRC}
+          alt="BIP"
+          className="h-7 w-auto max-w-full object-contain object-left drop-shadow-md md:h-9"
+        />
+        <p className="text-base font-black italic tracking-tight text-gray-900 drop-shadow-[0_1px_1px_rgba(255,255,255,0.85)] md:text-xl">
+          Here to Dare
+        </p>
+      </div>
+
       <div className="absolute top-6 right-6 z-[110]">
         <button
           type="button"
           onClick={onExit}
-          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+          className="rounded-full bg-white/90 p-2 shadow-md ring-1 ring-black/5 transition-colors hover:bg-white"
           aria-label="Sair"
           title="Sair"
         >
-          <X size={20} className="text-gray-500" />
+          <X size={20} className="text-gray-700" />
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
-        <div className="flex-1 bg-gray-50 p-8 md:p-16 border-b md:border-b-0 md:border-r border-gray-100 overflow-y-auto">
-          <div className="max-w-xl">
-            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-2xl bg-white border border-gray-100 shadow-sm">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#000fff]" />
+      <div className="relative z-[100] flex min-h-0 flex-1 flex-col overflow-hidden pb-24 pt-14 md:flex-row md:pb-20">
+        <div className="flex-1 overflow-y-auto border-b border-white/25 p-6 md:border-b-0 md:border-r md:p-12 lg:p-16">
+          <div className="max-w-xl rounded-[32px] border border-white/60 bg-white/95 p-6 shadow-xl shadow-black/10 backdrop-blur-md md:p-10">
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-2 shadow-sm">
+              <div className="h-2.5 w-2.5 rounded-full bg-[#000fff]" />
               <p className="text-xs font-black uppercase tracking-widest text-gray-500">{deckLabel}</p>
             </div>
 
@@ -456,23 +490,23 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
               {slide.subtitle}
             </p>
 
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter leading-tight mt-2">
+            <h2 className="mt-2 text-3xl font-black leading-tight tracking-tighter text-gray-900 md:text-4xl">
               {slide.title}
             </h2>
 
             <div className="mt-8 space-y-3">
               {slide.bullets.map((b, idx) => (
                 <div key={idx} className="flex items-start gap-3">
-                  <div className="mt-2 w-2 h-2 rounded-full bg-[#00C48C] shrink-0" />
-                  <p className="text-base text-gray-700 leading-relaxed">{b}</p>
+                  <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#00C48C]" />
+                  <p className="text-base leading-relaxed text-gray-700">{b}</p>
                 </div>
               ))}
             </div>
 
             {slide.highlight && (
-              <div className="mt-10 inline-flex items-center gap-3 px-6 py-4 rounded-[32px] bg-[#000fff] text-white shadow-lg max-w-full">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#00C48C] shrink-0" />
-                <p className="text-xs sm:text-sm font-black uppercase tracking-widest leading-snug">
+              <div className="mt-10 inline-flex max-w-full items-center gap-3 rounded-[32px] bg-[#000fff] px-6 py-4 text-white shadow-lg">
+                <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#00C48C]" />
+                <p className="text-xs font-black uppercase leading-snug tracking-widest sm:text-sm">
                   {slide.highlight}
                 </p>
               </div>
@@ -480,7 +514,8 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           </div>
         </div>
 
-        <div className="w-full md:w-[420px] bg-white p-8 md:p-10 flex flex-col justify-between shrink-0 min-h-0 overflow-y-auto">
+        <div className="flex min-h-0 w-full shrink-0 flex-col justify-between overflow-y-auto p-6 md:w-[420px] md:p-10">
+          <div className="rounded-[28px] border border-white/60 bg-white/95 p-6 shadow-xl shadow-black/10 backdrop-blur-md md:p-8">
           <div>
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
@@ -504,7 +539,7 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
           </div>
 
           <div className="mt-6">
-            <div className="rounded-[32px] border border-gray-100 bg-gray-50 p-6">
+            <div className="rounded-2xl border border-gray-100 bg-gray-50/90 p-4">
               <p className="text-xs font-black uppercase tracking-widest text-gray-400">
                 {language === 'pt'
                   ? 'Fotos do sistema'
@@ -517,56 +552,57 @@ const PricingSlides: React.FC<PricingSlidesProps> = ({ onExit }) => {
                 <img
                   src="/ap-1.jpg"
                   alt=""
-                  className="w-full h-24 object-cover rounded-2xl border border-gray-100 bg-white"
+                  className="h-24 w-full rounded-2xl border border-gray-100 bg-white object-cover"
                   loading="lazy"
                 />
                 <img
                   src="/ap-2.jpg"
                   alt=""
-                  className="w-full h-24 object-cover rounded-2xl border border-gray-100 bg-white"
+                  className="h-24 w-full rounded-2xl border border-gray-100 bg-white object-cover"
                   loading="lazy"
                 />
                 <img
                   src="/ap-3.jpg"
                   alt=""
-                  className="w-full h-24 object-cover rounded-2xl border border-gray-100 bg-white"
+                  className="h-24 w-full rounded-2xl border border-gray-100 bg-white object-cover"
                   loading="lazy"
                 />
               </div>
             </div>
-          </div>
 
-          <div className="pt-6 flex items-center gap-4">
-            <button
-              type="button"
-              onClick={goPrev}
-              disabled={currentSlide === 0}
-              className="flex items-center justify-center w-14 h-14 bg-gray-100 text-gray-500 rounded-2xl hover:bg-gray-200 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Voltar"
-              title="Voltar"
-            >
-              <ChevronLeft className="text-gray-400" />
-            </button>
-            <button
-              type="button"
-              onClick={goNext}
-              className="flex-1 flex items-center justify-center gap-3 bg-[#000fff] text-white px-6 py-4 rounded-2xl font-black shadow-xl shadow-[#000fff]/10 hover:bg-[#000fff]/90 transition-all active:scale-95"
-            >
-              <span>
-                {currentSlide === totalSlides - 1
-                  ? language === 'pt'
-                    ? 'Encerrar'
-                    : language === 'es'
-                      ? 'Finalizar'
-                      : 'Finish'
-                  : language === 'pt'
-                    ? 'Próximo'
-                    : language === 'es'
-                      ? 'Siguiente'
-                      : 'Next'}
-              </span>
-              <ChevronRight />
-            </button>
+            <div className="pt-6 flex items-center gap-4">
+              <button
+                type="button"
+                onClick={goPrev}
+                disabled={currentSlide === 0}
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Voltar"
+                title="Voltar"
+              >
+                <ChevronLeft className="text-gray-400" />
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                className="flex flex-1 items-center justify-center gap-3 rounded-2xl bg-[#000fff] px-6 py-4 font-black text-white shadow-xl shadow-[#000fff]/10 transition-all hover:bg-[#000fff]/90 active:scale-95"
+              >
+                <span>
+                  {currentSlide === totalSlides - 1
+                    ? language === 'pt'
+                      ? 'Encerrar'
+                      : language === 'es'
+                        ? 'Finalizar'
+                        : 'Finish'
+                    : language === 'pt'
+                      ? 'Próximo'
+                      : language === 'es'
+                        ? 'Siguiente'
+                        : 'Next'}
+                </span>
+                <ChevronRight />
+              </button>
+            </div>
+          </div>
           </div>
         </div>
       </div>
