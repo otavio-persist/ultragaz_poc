@@ -17,6 +17,9 @@ function readNodeEnv(): Record<string, string | undefined> | undefined {
 }
 
 export function getGeminiApiKey(): string | undefined {
+  const fromBuild = typeof __GEMINI_API_KEY_BUILD__ === 'string' ? __GEMINI_API_KEY_BUILD__.trim() : '';
+  if (fromBuild) return fromBuild;
+
   const viteEnv = readViteEnv();
   const nodeEnv = readNodeEnv();
 

@@ -37,10 +37,11 @@ Sistema de treinamento para colaboradores da Ultragaz, com simulações de IA pa
 
 3. **Configure a chave da API**
    
-   Crie um arquivo `.env.local` na raiz do projeto:
+   Crie um arquivo `.env.local` na raiz do projeto (qualquer um dos nomes abaixo):
    ```env
    GEMINI_API_KEY=sua_chave_aqui
    ```
+   ou `VITE_GEMINI_API_KEY=sua_chave_aqui`. No Netlify, use **GEMINI_API_KEY** ou **VITE_GEMINI_API_KEY** nas variáveis de ambiente e faça um novo deploy.
 
 4. **Execute o projeto**
    ```bash
