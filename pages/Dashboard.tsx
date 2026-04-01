@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MOCK_SCENARIOS, MOCK_RESULTS } from '../constants';
 import { ScenarioCard } from '../components/ScenarioCard';
-import { Scenario, User, UserRole, SimulationResult } from '../types';
+import { Scenario, User, UserRole } from '../types';
 import { loadTrainingHistory, type SavedTrainingRecord } from '../services/trainingHistoryStorage';
 import { 
   RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer,
@@ -49,6 +49,66 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartTraining, showScena
     () => (savedHistoryExpanded ? mySavedConversations : mySavedConversations.slice(0, 4)),
     [mySavedConversations, savedHistoryExpanded]
   );
+
+  /** Agregados do histórico salvo (Salvar e Voltar) para cards e radar. */
+  const dashboardMetricsFromSaved = useMemo(() => {
+    const n = mySavedConversations.length;
+    const avg =
+      n > 0
+        ? Math.round(
+            mySavedConversations.reduce((acc, r) => acc + r.mediaGeralUltragaz, 0) / n
+          )
+        : 0;
+    const byScenario = new Map<string, { count: number; best: number }>();
+    for (const rec of mySavedConversations) {
+      const x = byScenario.get(rec.scenarioId) || { count: 0, best: 0 };
+      x.count += 1;
+      x.best = Math.max(x.best, rec.mediaGeralUltragaz);
+      byScenario.set(rec.scenarioId, x);
+    }
+    let completed = 0;
+    for (const [, v] of byScenario) {
+      if (v.count >= 3 || v.best >= 90) completed += 1;
+    }
+    return { total: n, avgPct: avg, completedScenarios: completed };
+  }, [mySavedConversations]);
+
+  const radarDataFromSaved = useMemo(() => {
+    const order: { full: string; short: string }[] = [
+      { full: 'Empatia', short: 'Empatia' },
+      { full: 'Procedimento', short: 'Proced.' },
+      { full: 'Verificação', short: 'Verif.' },
+      { full: 'Comunicação', short: 'Comun.' },
+      { full: 'Solução', short: 'Solução' },
+    ];
+    if (mySavedConversations.length === 0) {
+      return order.map(({ short }) => ({ subject: short, A: 0 }));
+    }
+    const sums = new Map<string, { sum: number; n: number }>();
+    for (const rec of mySavedConversations) {
+      for (const row of rec.mapaCompetencias || []) {
+        const prev = sums.get(row.subject) || { sum: 0, n: 0 };
+        prev.sum += row.val;
+        prev.n += 1;
+        sums.set(row.subject, prev);
+      }
+    }
+    return order.map(({ full, short }) => {
+      const agg = sums.get(full);
+      const A = agg && agg.n > 0 ? Math.round(agg.sum / agg.n) : 0;
+      return { subject: short, A };
+    });
+  }, [mySavedConversations]);
+
+  const savesByScenarioId = useMemo(() => {
+    const m = new Map<string, SavedTrainingRecord[]>();
+    for (const rec of mySavedConversations) {
+      const arr = m.get(rec.scenarioId) || [];
+      arr.push(rec);
+      m.set(rec.scenarioId, arr);
+    }
+    return m;
+  }, [mySavedConversations]);
   
   const isStoreAdmin = user.role === UserRole.ADMIN || user.role === UserRole.REGIONAL_ADMIN;
   const isGlobalAdmin = user.role === UserRole.GLOBAL_ADMIN;
@@ -73,8 +133,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartTraining, showScena
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {MOCK_SCENARIOS.map(scenario => {
-            const count = user.simulationCounts?.[scenario.id] || 0;
-            const bestScore = Math.max(0, ...myResults.filter(r => r.scenarioId === scenario.id).map(r => r.score));
+            const savedForScenario = savesByScenarioId.get(scenario.id) || [];
+            const saveCount = savedForScenario.length;
+            const count = Math.max(user.simulationCounts?.[scenario.id] || 0, saveCount);
+            const bestScore = Math.max(
+              0,
+              ...savedForScenario.map((s) => s.mediaGeralUltragaz),
+              ...myResults.filter((r) => r.scenarioId === scenario.id).map((r) => r.score)
+            );
             const isFinished = count >= 3 || bestScore >= 90;
 
             return (
@@ -123,23 +189,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartTraining, showScena
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard 
           title="Minhas Simulações" 
-          value={myResults.length} 
-          trend="Total Geral" 
+          value={dashboardMetricsFromSaved.total} 
+          trend="Treinos salvos (Salvar e Voltar)" 
           icon={<Play size={20} />}
           color="bg-[#000fff]/10 text-[#000fff]"
         />
         <MetricCard 
           title="Média Pessoal" 
-          value={`${myResults.length > 0 ? Math.round(myResults.reduce((acc, r) => acc + r.score, 0) / myResults.length) : 0}%`} 
-          trend="Hospitalidade" 
+          value={`${dashboardMetricsFromSaved.avgPct}%`} 
+          trend={dashboardMetricsFromSaved.total > 0 ? 'Média geral nos salvamentos' : 'Hospitalidade'} 
           icon={<Target size={20} />}
           color="bg-[#00AEEF]/10 text-[#005BBB]"
         />
         <MetricCard 
           title="Treinamentos 100%" 
-          // Fix: Explicitly cast values to number[] to resolve the 'unknown' operator error
-          value={(Object.values(user.simulationCounts || {}) as number[]).filter(v => v >= 3).length} 
-          subtitle="concluídos" 
+          value={Math.max(
+            dashboardMetricsFromSaved.completedScenarios,
+            (Object.values(user.simulationCounts || {}) as number[]).filter((v) => v >= 3).length
+          )}
+          subtitle="cenários concluídos" 
           icon={<CheckCircle2 size={20} />}
           color="bg-green-50 text-green-600"
         />
@@ -154,21 +222,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartTraining, showScena
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-           <h2 className="text-xl font-black text-gray-900 mb-8 flex items-center gap-2">
+           <h2 className="text-xl font-black text-gray-900 mb-2 flex items-center gap-2">
              <TrendingUp size={20} className="text-[#000fff]" /> Evolução de Competências
            </h2>
+           <p className="text-xs font-medium text-gray-500 mb-6">
+             {mySavedConversations.length > 0
+               ? 'Média das competências nos treinos que você salvou.'
+               : 'Complete treinos e use Salvar e Voltar para preencher este mapa.'}
+           </p>
            <div className="h-[350px] w-full min-w-0">
              <ResponsiveContainer width="100%" height={350}>
-               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
-                 { subject: 'Empatia', A: 85, B: 70 },
-                 { subject: 'Proced.', A: 92, B: 85 },
-                 { subject: 'Verif.', A: 78, B: 90 },
-                 { subject: 'Comun.', A: 95, B: 80 },
-                 { subject: 'Solução', A: 88, B: 75 },
-               ]}>
+               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarDataFromSaved}>
                  <PolarGrid stroke="#f1f5f9" />
                  <PolarAngleAxis dataKey="subject" tick={{fill: '#64748b', fontSize: 10, fontWeight: 700}} />
-                 <Radar name="Minha Média" dataKey="A" stroke="#000fff" fill="#000fff" fillOpacity={0.6} />
+                 <Radar name="Média (salvos)" dataKey="A" stroke="#000fff" fill="#000fff" fillOpacity={0.6} />
                  <Tooltip />
                </RadarChart>
              </ResponsiveContainer>
