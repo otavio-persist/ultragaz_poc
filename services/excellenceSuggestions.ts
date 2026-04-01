@@ -6,6 +6,12 @@
 import { ChatMessage, Scenario, ScenarioMood, ScenarioType, Sector } from "../types";
 import { GoogleGenAI, Type } from "@google/genai";
 import { getGeminiApiKey } from "../geminiEnv";
+import {
+  isGeminiQuotaError,
+  isGeminiRestQuotaExceeded,
+  markGeminiRestQuotaExceeded,
+  resetGeminiRestQuotaSessionFlag,
+} from "./geminiQuota";
 
 const apiKey = getGeminiApiKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
@@ -15,22 +21,12 @@ const suggestionCache = new Map<string, string>();
 const lastSuggestionTime = new Map<string, number>();
 const QUOTA_EXCEEDED_FLAG = 'QUOTA_EXCEEDED';
 let quotaExceeded = false;
+let quotaExhaustedLogPrinted = false;
 
 // Configurações de rate limiting
 const MIN_TIME_BETWEEN_SUGGESTIONS = 5000; // 5 segundos entre sugestões
 const MAX_SUGGESTIONS_PER_SESSION = 10; // Máximo de 10 sugestões por sessão
 let suggestionsGeneratedThisSession = 0;
-
-// Função para verificar se é erro de quota
-function isQuotaError(error: any): boolean {
-  return (
-    error?.status === 429 ||
-    error?.code === 429 ||
-    error?.error?.code === 429 ||
-    (typeof error?.message === 'string' && error.message.includes('429')) ||
-    (typeof error?.error?.message === 'string' && error.error.message.includes('quota'))
-  );
-}
 
 // Função para criar chave de cache
 function createCacheKey(customerMsg: string, employeeMsg: string, scenarioId: string): string {
@@ -265,6 +261,18 @@ export async function generateExcellenceSuggestionWithAI(
     });
   }
 
+  if (quotaExceeded || isGeminiRestQuotaExceeded()) {
+    const lang = detectLang(scenario);
+    const suggestion = buildExcellentResponse({
+      scenario,
+      customerUtterance: customerMessage,
+      employeeUtterance: employeeMessage,
+      lang
+    });
+    suggestionCache.set(cacheKey, suggestion);
+    return suggestion;
+  }
+
   try {
     const lang = detectLang(scenario);
     const language = lang === 'es' ? 'español' : lang === 'en' ? 'english' : 'português';
@@ -373,9 +381,15 @@ Return ONLY the response suggestion, without additional explanations.`
         lastError = error;
         
         // Se for erro de quota, marcar flag e usar fallback
-        if (isQuotaError(error)) {
-          console.warn('⚠️ Quota da API excedida, usando fallback offline para todas as sugestões futuras');
+        if (isGeminiQuotaError(error)) {
           quotaExceeded = true;
+          markGeminiRestQuotaExceeded();
+          if (!quotaExhaustedLogPrinted) {
+            quotaExhaustedLogPrinted = true;
+            console.warn(
+              '⚠️ Quota da API Gemini (tier gratuito) esgotada — sugestões em tempo real passam para o modo offline até o fim da sessão.'
+            );
+          }
           const lang = detectLang(scenario);
           const fallbackSuggestion = buildExcellentResponse({
             scenario,
@@ -408,10 +422,15 @@ Return ONLY the response suggestion, without additional explanations.`
       return fallbackSuggestion;
     }
   } catch (error: any) {
-    // Se for erro de quota, marcar flag
-    if (isQuotaError(error)) {
-      console.warn('⚠️ Quota da API excedida, usando fallback offline');
+    if (isGeminiQuotaError(error)) {
       quotaExceeded = true;
+      markGeminiRestQuotaExceeded();
+      if (!quotaExhaustedLogPrinted) {
+        quotaExhaustedLogPrinted = true;
+        console.warn(
+          '⚠️ Quota da API Gemini (tier gratuito) esgotada — sugestões em tempo real em modo offline.'
+        );
+      }
     }
     
     console.warn('Erro ao gerar sugestão com IA, usando fallback offline:', error);
@@ -438,8 +457,10 @@ Return ONLY the response suggestion, without additional explanations.`
 export function resetSuggestionCounters(): void {
   suggestionsGeneratedThisSession = 0;
   quotaExceeded = false;
+  quotaExhaustedLogPrinted = false;
   suggestionCache.clear();
   lastSuggestionTime.clear();
+  resetGeminiRestQuotaSessionFlag();
 }
 
 /**

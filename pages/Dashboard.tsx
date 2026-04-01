@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MOCK_SCENARIOS, MOCK_RESULTS } from '../constants';
 import { ScenarioCard } from '../components/ScenarioCard';
 import { Scenario, User, UserRole, SimulationResult } from '../types';
+import { loadTrainingHistory, type SavedTrainingRecord } from '../services/trainingHistoryStorage';
 import { 
   RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, BarChart, Bar, Cell, Radar
@@ -10,7 +11,7 @@ import {
 import { 
   Play, Target, Trophy, Users, TrendingUp, AlertCircle, Building2, ChevronRight,
   UserCheck, ArrowLeft, BellRing, History, Download, Send, Calendar, BarChart3,
-  GraduationCap, Book, CheckCircle2, Lock
+  GraduationCap, Book, CheckCircle2, Lock, MessageSquare
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -23,6 +24,31 @@ type SubView = 'main' | 'report' | 'notifications' | 'history';
 
 export const Dashboard: React.FC<DashboardProps> = ({ onStartTraining, showScenariosOnly = false, user }) => {
   const [activeSubView, setActiveSubView] = useState<SubView>('main');
+  const [savedHistory, setSavedHistory] = useState<SavedTrainingRecord[]>([]);
+  const [savedHistoryExpanded, setSavedHistoryExpanded] = useState(false);
+  const [expandedSavedId, setExpandedSavedId] = useState<string | null>(null);
+
+  const refreshSavedHistory = useCallback(() => {
+    setSavedHistory(loadTrainingHistory());
+  }, []);
+
+  useEffect(() => {
+    refreshSavedHistory();
+    const onSaved = () => refreshSavedHistory();
+    window.addEventListener('ultragaz-training-saved', onSaved as EventListener);
+    return () => window.removeEventListener('ultragaz-training-saved', onSaved as EventListener);
+  }, [refreshSavedHistory]);
+
+  const mySavedConversations = useMemo(() => {
+    return savedHistory
+      .filter((r) => r.userId === user.id)
+      .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
+  }, [savedHistory, user.id]);
+
+  const recentSaved = useMemo(
+    () => (savedHistoryExpanded ? mySavedConversations : mySavedConversations.slice(0, 4)),
+    [mySavedConversations, savedHistoryExpanded]
+  );
   
   const isStoreAdmin = user.role === UserRole.ADMIN || user.role === UserRole.REGIONAL_ADMIN;
   const isGlobalAdmin = user.role === UserRole.GLOBAL_ADMIN;
@@ -150,27 +176,90 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartTraining, showScena
         </div>
 
         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
-           <h2 className="text-xl font-black text-gray-900 mb-8 flex items-center gap-2">
+           <h2 className="text-xl font-black text-gray-900 mb-2 flex items-center gap-2">
              <History size={20} className="text-[#00C48C]" /> Atividades Recentes
            </h2>
-           <div className="space-y-4">
-              {myResults.slice(-4).map(res => (
-                <div key={res.id} className="p-4 bg-gray-50 rounded-3xl border border-gray-100 flex items-center justify-between hover:bg-white hover:border-[#00AEEF] transition-all cursor-pointer group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-[#000fff] font-black group-hover:bg-[#000fff] group-hover:text-white transition-colors">
-                        {res.score}
-                     </div>
-                     <div>
-                        <p className="text-sm font-bold text-gray-900">{res.scenarioTitle}</p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{new Date(res.date).toLocaleDateString()}</p>
-                     </div>
-                  </div>
-                  <ChevronRight size={18} className="text-gray-300 group-hover:text-[#000fff]" />
+           <p className="text-xs font-medium text-gray-500 mb-6">
+             Conversas salvas ao concluir um treino e usar <span className="font-black text-gray-700">Salvar e Voltar</span>.
+           </p>
+           <div className="space-y-4 max-h-[480px] overflow-y-auto pr-1">
+              {recentSaved.length === 0 ? (
+                <div className="p-6 rounded-3xl border border-dashed border-gray-200 bg-gray-50/80 text-center">
+                  <MessageSquare className="mx-auto text-gray-300 mb-2" size={28} />
+                  <p className="text-sm font-bold text-gray-700">Nenhuma conversa salva ainda</p>
+                  <p className="text-xs text-gray-500 mt-1">Finalize um treino e toque em Salvar e Voltar para ver o histórico aqui.</p>
                 </div>
-              ))}
-              <button className="w-full py-4 mt-4 border-2 border-dashed border-gray-100 rounded-[32px] text-gray-400 font-black text-[10px] uppercase tracking-widest hover:border-[#000fff] hover:text-[#000fff] transition-all">
-                Ver Histórico Completo
-              </button>
+              ) : (
+                recentSaved.map((rec) => {
+                  const msgCount = rec.dossieDialogo?.length ?? 0;
+                  const isOpen = expandedSavedId === rec.id;
+                  return (
+                    <div
+                      key={rec.id}
+                      className="rounded-3xl border border-gray-100 bg-gray-50 overflow-hidden transition-all hover:border-[#00AEEF]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setExpandedSavedId(isOpen ? null : rec.id)}
+                        className="w-full p-4 flex items-center justify-between text-left cursor-pointer group hover:bg-white transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-[#000fff] font-black shrink-0 group-hover:bg-[#000fff] group-hover:text-white transition-colors">
+                            {rec.mediaGeralUltragaz}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-gray-900 truncate">{rec.scenarioTitle}</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter flex items-center gap-2 flex-wrap">
+                              <span>{new Date(rec.savedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                              <span className="inline-flex items-center gap-1 text-[#000fff]">
+                                <MessageSquare size={10} />
+                                {msgCount} {msgCount === 1 ? 'msg' : 'msgs'}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight
+                          size={18}
+                          className={`text-gray-300 group-hover:text-[#000fff] shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                        />
+                      </button>
+                      {isOpen && msgCount > 0 && (
+                        <div className="px-4 pb-4 border-t border-gray-100 bg-white/80">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 mt-3">Trecho da conversa</p>
+                          <div className="space-y-2 max-h-[220px] overflow-y-auto rounded-2xl border border-gray-100 p-3 bg-gray-50/50">
+                            {rec.dossieDialogo.map((m, idx) => (
+                              <div
+                                key={`${rec.id}-${idx}`}
+                                className={`text-xs leading-snug rounded-xl px-3 py-2 ${
+                                  m.role === 'user'
+                                    ? 'bg-[#000fff]/10 text-gray-900 ml-4 font-bold'
+                                    : 'bg-white border border-gray-100 text-gray-700 mr-4'
+                                }`}
+                              >
+                                <span className="text-[9px] font-black uppercase text-gray-400 block mb-1">
+                                  {m.role === 'user' ? 'Você' : 'Cliente / IA'}
+                                </span>
+                                {m.content}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+              {mySavedConversations.length > 4 && (
+                <button
+                  type="button"
+                  onClick={() => setSavedHistoryExpanded((v) => !v)}
+                  className="w-full py-4 border-2 border-dashed border-gray-100 rounded-[32px] text-gray-500 font-black text-[10px] uppercase tracking-widest hover:border-[#000fff] hover:text-[#000fff] transition-all"
+                >
+                  {savedHistoryExpanded
+                    ? 'Mostrar só as 4 mais recentes'
+                    : `Ver todas (${mySavedConversations.length})`}
+                </button>
+              )}
            </div>
         </div>
       </div>

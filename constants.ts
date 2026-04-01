@@ -207,7 +207,7 @@ INSTRUÇÕES:
     type: 'evaluator',
     description: 'Auditoria técnica focada nos 5 pilares de atendimento Ultragaz.',
     personality: 'Rigorosa, técnica e focada em processos operacionais.',
-    model: 'gemini-2.5-pro',
+    model: 'gemini-2.5-flash',
     temperature: 0.2,
     systemPrompt: `Você é um AVALIADOR EXPERIENTE de atendimento ao cliente da Ultragaz.
 

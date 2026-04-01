@@ -18,6 +18,8 @@ import {
   Tooltip, ResponsiveContainer, Cell, Radar, RadarChart, PolarGrid, PolarAngleAxis,
 } from 'recharts';
 import { loadTrainingHistory, type SavedTrainingRecord } from '../services/trainingHistoryStorage';
+import { attendantNarrativeFromExpressions, moodToPt } from '../services/attendantExpressionNarrative';
+import { sanitizeAttendantAnalysisFeedback } from '../services/attendantFeedbackSanitize';
 
 const MOOD_LABEL: Record<ScenarioMood, string> = {
   [ScenarioMood.CALM]: 'Calmo',
@@ -1180,9 +1182,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ scenarios, setScenarios,
                           </p>
                           <p>
                             <span className="font-black text-gray-600">Humor geral:</span>{' '}
-                            {selectedHistoryRecord.mapaSentimentoAtendente.overallMood}
+                            {(() => {
+                              const att = selectedHistoryRecord.mapaSentimentoAtendente!;
+                              const n = attendantNarrativeFromExpressions(att.expressions);
+                              return moodToPt(n?.overallMood ?? att.overallMood);
+                            })()}
                           </p>
-                          <p className="text-gray-700 leading-relaxed">{selectedHistoryRecord.mapaSentimentoAtendente.feedback}</p>
+                          <p className="text-gray-700 leading-relaxed">
+                            {(() => {
+                              const att = selectedHistoryRecord.mapaSentimentoAtendente!;
+                              const n = attendantNarrativeFromExpressions(att.expressions);
+                              return (
+                                n?.feedback ??
+                                sanitizeAttendantAnalysisFeedback(att.feedback) ??
+                                att.feedback
+                              );
+                            })()}
+                          </p>
                         </div>
                       ) : (
                         <p className="text-sm text-gray-400 italic">Sem análise de vídeo para esta sessão.</p>

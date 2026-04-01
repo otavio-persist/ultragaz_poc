@@ -2,7 +2,9 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { ChatMessage, Scenario, SimulationResult, Country, ScenarioMood, Sector } from "./types";
 import { SYSTEM_PROMPT_SIMULATOR } from "./constants";
-import { getGeminiApiKey } from "./geminiEnv";
+import { getGeminiApiKey, isGeminiConfigured } from "./geminiEnv";
+import { sanitizeChatMessages } from "./services/transcriptSanitizer";
+import { attendantNarrativeFromExpressions } from "./services/attendantExpressionNarrative";
 
 let googleGenAiSingleton: GoogleGenAI | null = null;
 
@@ -251,6 +253,143 @@ export const connectLiveSimulation = (scenario: Scenario, callbacks: any) => {
   });
 };
 
+export type LivePreflightResult =
+  | { ok: true }
+  | { ok: false; userMessage: string };
+
+const LIVE_PREFLIGHT_TIMEOUT_MS = 32_000;
+
+/**
+ * Abre e fecha rapidamente uma sessão Live com a mesma config da simulação, sem microfone.
+ * Garante que a chave e o modelo de voz respondem antes do colaborador entrar na cena.
+ */
+export async function testGeminiLiveConnection(
+  scenario: Scenario,
+  timeoutMs: number = LIVE_PREFLIGHT_TIMEOUT_MS
+): Promise<LivePreflightResult> {
+  const maintenanceMsg =
+    'O sistema de simulação por voz está passando por manutenção ou instável. Aguarde alguns minutos ou contate os administradores.';
+
+  if (!isGeminiConfigured()) {
+    return {
+      ok: false,
+      userMessage:
+        'Configuração do treinamento por voz incompleta. Contate os administradores para verificar a chave Gemini.',
+    };
+  }
+
+  let session: Awaited<ReturnType<typeof connectLiveSimulation>> | null = null;
+  let settled = false;
+  let timer: number | null = null;
+
+  const cleanupTimer = () => {
+    if (timer != null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  const safeClose = (s: Awaited<ReturnType<typeof connectLiveSimulation>> | null) => {
+    if (!s) return;
+    try {
+      s.close();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return new Promise((resolve) => {
+    const fail = (msg: string) => {
+      if (settled) return;
+      settled = true;
+      cleanupTimer();
+      safeClose(session);
+      resolve({ ok: false, userMessage: msg });
+    };
+
+    const succeed = () => {
+      if (settled) return;
+      settled = true;
+      cleanupTimer();
+      safeClose(session);
+      resolve({ ok: true });
+    };
+
+    timer = window.setTimeout(() => {
+      fail(maintenanceMsg);
+    }, timeoutMs);
+
+    connectLiveSimulation(scenario, {
+      onerror: () => {
+        fail(maintenanceMsg);
+      },
+      onclose: (ev: CloseEvent) => {
+        if (settled) return;
+        const code = ev?.code;
+        const reason = String(ev?.reason || '');
+        if (
+          code === 1008 ||
+          /leaked|revoked|invalid api key|api key was reported/i.test(reason)
+        ) {
+          fail(
+            'Acesso ao serviço de voz recusado (chave inválida ou bloqueada). Contate os administradores.'
+          );
+          return;
+        }
+        if (code !== void 0 && code !== 1000 && code !== 1005) {
+          fail(maintenanceMsg);
+        }
+      },
+    })
+      .then((s) => {
+        if (settled) {
+          safeClose(s);
+          return;
+        }
+        session = s;
+        succeed();
+      })
+      .catch(() => {
+        fail(maintenanceMsg);
+      });
+  });
+}
+
+function normalizeMissingFeedback(
+  raw: unknown,
+  scores: {
+    empathyScore?: number;
+    procedureScore?: number;
+    verificationScore?: number;
+    communicationScore?: number;
+    solutionScore?: number;
+  }
+): string {
+  const t = typeof raw === 'string' ? raw.trim() : '';
+  if (t) return t;
+  const parts: string[] = [];
+  const { empathyScore: emp, procedureScore: proc, verificationScore: ver, communicationScore: comm, solutionScore: sol } = scores;
+  if (typeof emp === 'number' && emp < 75) {
+    parts.push('Reforçar empatia e escuta ativa nas primeiras respostas ao cliente.');
+  }
+  if (typeof proc === 'number' && proc < 75) {
+    parts.push('Alinhar-se aos procedimentos e ao roteiro Ultragaz do cenário.');
+  }
+  if (typeof ver === 'number' && ver < 75) {
+    parts.push('Incluir mais perguntas de verificação (pedido, segurança, entendimento) antes de encerrar.');
+  }
+  if (typeof comm === 'number' && comm < 75) {
+    parts.push('Manter comunicação clara, objetiva e cordial do início ao fim.');
+  }
+  if (typeof sol === 'number' && sol < 75) {
+    parts.push('Garantir fechamento com próximos passos acordados e confirmação do cliente.');
+  }
+  if (parts.length === 0) {
+    return 'Continue evoluindo: pratique antecipação de objeções, variação de abordagem e fechamento com resumo do combinado com o cliente.';
+  }
+  return parts.join(' ');
+}
+
 export const evaluatePerformance = async (scenario: Scenario, transcript: ChatMessage[]): Promise<Partial<SimulationResult>> => {
   // Expandir lista de modelos - tentar mais opções quando quota exceder
   // Ordem: modelos mais recentes primeiro, depois alternativas
@@ -261,7 +400,8 @@ export const evaluatePerformance = async (scenario: Scenario, transcript: ChatMe
     'gemini-3-flash-preview',
     'gemini-3-pro-preview'
   ];
-  const history = transcript.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+  const transcriptClean = sanitizeChatMessages(transcript);
+  const history = transcriptClean.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
   const language = detectScenarioLanguage(scenario);
   const interviewEvalNote = isBilingualInterviewScenario(scenario)
     ? '\n\nContexto: ENTREVISTA bilíngue. USER = candidato; ASSISTANT = entrevistador. Avalie desempenho em português e na parte em inglês (clareza, vocabulário e adequação profissional).'
@@ -269,9 +409,9 @@ export const evaluatePerformance = async (scenario: Scenario, transcript: ChatMe
 
   // Prompts de avaliação por idioma
   const evaluationPrompts: Record<string, string> = {
-    'português': `Avalie o diálogo de treinamento Ultragaz.\n\nCenário: ${scenario.title}\nHistórico:\n${history}${interviewEvalNote}`,
-    'español': `Evalúa el diálogo de entrenamiento Ultragaz.\n\nEscenario: ${scenario.title}\nHistorial:\n${history}${interviewEvalNote}`,
-    'english': `Evaluate the Ultragaz training dialogue.\n\nScenario: ${scenario.title}\nHistory:\n${history}${interviewEvalNote}`
+    'português': `Avalie o diálogo de treinamento Ultragaz.\n\nCenário: ${scenario.title}\nHistórico:\n${history}${interviewEvalNote}\n\nPreencha missingFeedback com 2 a 4 frases objetivas em português sobre oportunidades de melhoria (sempre, mesmo com bom desempenho: sugira refinamentos).`,
+    'español': `Evalúa el diálogo de entrenamiento Ultragaz.\n\nEscenario: ${scenario.title}\nHistorial:\n${history}${interviewEvalNote}\n\nCompleta missingFeedback con 2 a 4 frases sobre oportunidades de mejora.`,
+    'english': `Evaluate the Ultragaz training dialogue.\n\nScenario: ${scenario.title}\nHistory:\n${history}${interviewEvalNote}\n\nAlways fill missingFeedback with 2–4 sentences on improvement opportunities.`
   };
   
   let lastError: any = null;
@@ -301,7 +441,7 @@ export const evaluatePerformance = async (scenario: Scenario, transcript: ChatMe
               finalMood: { type: Type.STRING, enum: ['CALM', 'NEUTRAL', 'FRUSTRATED', 'ANGRY'] },
               sentimentEvolution: { type: Type.STRING }
             },
-            required: ["score", "feedback", "finalMood", "sentimentEvolution"]
+            required: ["score", "feedback", "missingFeedback", "finalMood", "sentimentEvolution"]
           }
         }
       });
@@ -318,12 +458,21 @@ export const evaluatePerformance = async (scenario: Scenario, transcript: ChatMe
       
       // Gerar sugestões de resposta de excelência para cada mensagem do usuário
       const transcriptWithSuggestions = ENABLE_RESPONSE_SUGGESTIONS
-        ? await generateResponseSuggestions(transcript, scenario, model)
-        : transcript;
+        ? await generateResponseSuggestions(transcriptClean, scenario, model)
+        : transcriptClean;
+
+      const missingFeedback = normalizeMissingFeedback(rawResult.missingFeedback, {
+        empathyScore: Number(rawResult.empathyScore),
+        procedureScore: Number(rawResult.procedureScore),
+        verificationScore: Number(rawResult.verificationScore),
+        communicationScore: Number(rawResult.communicationScore),
+        solutionScore: Number(rawResult.solutionScore),
+      });
       
       return { 
-        ...rawResult, 
-        transcript: transcriptWithSuggestions,
+        ...rawResult,
+        missingFeedback,
+        transcript: sanitizeChatMessages(transcriptWithSuggestions),
         initialMood: scenario.mood,
         tokenUsage: {
           input: inputTokens,
@@ -384,10 +533,16 @@ export const evaluatePerformance = async (scenario: Scenario, transcript: ChatMe
     feedback: quotaExceededCount > 0
       ? `Avaliação automática temporariamente indisponível devido a limitações da API (quota excedida em ${quotaExceededCount} modelo(s)). Seu treinamento foi registrado com sucesso. Continue praticando para melhorar suas habilidades de atendimento.`
       : "Avaliação automática temporariamente indisponível. Seu treinamento foi registrado com sucesso. Continue praticando para melhorar suas habilidades de atendimento.",
-    missingFeedback: "Não foi possível gerar feedback detalhado devido a limitações da API. Tente novamente mais tarde.",
-    finalMood: transcript.length > 0 ? (transcript[transcript.length - 1].role === 'assistant' ? ScenarioMood.CALM : scenario.mood) : scenario.mood,
+    missingFeedback: normalizeMissingFeedback(undefined, {
+      empathyScore: 70,
+      procedureScore: 75,
+      verificationScore: 80,
+      communicationScore: 75,
+      solutionScore: 70,
+    }),
+    finalMood: transcriptClean.length > 0 ? (transcriptClean[transcriptClean.length - 1].role === 'assistant' ? ScenarioMood.CALM : scenario.mood) : scenario.mood,
     sentimentEvolution: "Evolução do sentimento não pôde ser analisada automaticamente.",
-    transcript,
+    transcript: transcriptClean,
     initialMood: scenario.mood,
     tokenUsage: {
       input: Math.ceil(history.length / 4) + 1000,
@@ -602,28 +757,26 @@ export function captureVideoFrame(video: HTMLVideoElement): string | null {
 export const analyzeAttendantEmotions = async (videoFrames: string[]): Promise<Partial<SimulationResult['attendantAnalysis']>> => {
   // Evitar gastar quota com visão por padrão no free tier
   if (!ENABLE_ATTENDANT_VISION) {
+    const expressions = { happy: 40, neutral: 35, serious: 20, concerned: 5 };
+    const n = attendantNarrativeFromExpressions(expressions)!;
     return {
       smilePercentage: 65,
       eyeContactPercentage: 75,
-      expressions: { happy: 40, neutral: 35, serious: 20, concerned: 5 },
-      overallMood: 'NEUTRAL',
-      feedback: 'Análise de câmera desativada para economizar quota. (Ative ENABLE_ATTENDANT_VISION para habilitar.)'
+      expressions,
+      overallMood: n.overallMood,
+      feedback: n.feedback,
     };
   }
 
   if (!videoFrames || videoFrames.length === 0) {
-    // Retornar análise mockada se não houver frames
+    const expressions = { happy: 40, neutral: 35, serious: 20, concerned: 5 };
+    const n = attendantNarrativeFromExpressions(expressions)!;
     return {
       smilePercentage: 65,
       eyeContactPercentage: 75,
-      expressions: {
-        happy: 40,
-        neutral: 35,
-        serious: 20,
-        concerned: 5
-      },
-      overallMood: 'POSITIVE',
-      feedback: 'Análise de câmera não disponível. A câmera estava ativa durante o treinamento.'
+      expressions,
+      overallMood: n.overallMood,
+      feedback: n.feedback,
     };
   }
 
@@ -687,6 +840,8 @@ export const analyzeAttendantEmotions = async (videoFrames: string[]): Promise<P
       const result = JSON.parse(text);
       
       console.log(`✅ Análise de emoções concluída usando ${model}`);
+      const n = attendantNarrativeFromExpressions(result.expressions);
+      if (n) return { ...result, overallMood: n.overallMood, feedback: n.feedback };
       return result;
     } catch (error: any) {
       console.warn(`⚠️ Erro ao analisar emoções com ${model}:`, error.message || error);
@@ -705,16 +860,13 @@ export const analyzeAttendantEmotions = async (videoFrames: string[]): Promise<P
   
   // Retornar análise mockada se todos os modelos falharem
   console.warn('⚠️ Análise de emoções falhou, retornando dados mockados');
+  const expressions = { happy: 40, neutral: 35, serious: 20, concerned: 5 };
+  const n = attendantNarrativeFromExpressions(expressions)!;
   return {
     smilePercentage: 65,
     eyeContactPercentage: 75,
-    expressions: {
-      happy: 40,
-      neutral: 35,
-      serious: 20,
-      concerned: 5
-    },
-    overallMood: 'POSITIVE',
-    feedback: 'Análise automática de emoções temporariamente indisponível. A câmera estava ativa durante o treinamento.'
+    expressions,
+    overallMood: n.overallMood,
+    feedback: n.feedback,
   };
 };

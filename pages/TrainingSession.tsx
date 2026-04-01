@@ -1,7 +1,17 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Scenario, ChatMessage, SimulationResult, ScenarioMood, Country, Agent } from '../types';
-import { connectLiveSimulation, evaluatePerformance, encodeAudio, decodeAudio, decodeAudioData, analyzeAttendantEmotions } from '../geminiService';
+import {
+  connectLiveSimulation,
+  evaluatePerformance,
+  encodeAudio,
+  decodeAudio,
+  decodeAudioData,
+  analyzeAttendantEmotions,
+  testGeminiLiveConnection,
+} from '../geminiService';
+import { sanitizeAttendantAnalysisFeedback } from '../services/attendantFeedbackSanitize';
+import { attendantNarrativeFromExpressions } from '../services/attendantExpressionNarrative';
 
 // Função para detectar o idioma do cenário
 const detectScenarioLanguage = (scenario: Scenario): 'português' | 'español' | 'english' => {
@@ -49,14 +59,21 @@ const getInitialMessage = (language: 'português' | 'español' | 'english'): str
   };
   return messages[language];
 };
+
+/** Pelo menos uma fala do operador (usuário) na simulação — exige conteúdo após limpar o texto. */
+function transcriptHasOperatorInteraction(transcript: ChatMessage[]): boolean {
+  return transcript.some(
+    (m) => m.role === 'user' && typeof m.content === 'string' && m.content.trim().length > 0
+  );
+}
+
 import { CustomerAvatar } from '../components/CustomerAvatar';
 import { AdvancedAIFeatures } from '../components/AdvancedAIFeatures';
 import { performHolisticAnalysis, clearAnalysisHistory } from '../services/multimodalAnalysis';
 import { getCoachTip } from '../services/coachService';
 import { addExcellenceSuggestions, generateExcellenceSuggestionWithAI, resetSuggestionCounters } from '../services/excellenceSuggestions';
 import { initializeMediaPipe } from '../services/mediapipeAnalysis';
-import { AgentOrchestrator } from '../services/agentsService';
-import { MOCK_AGENTS } from '../constants';
+import { sanitizeLiveTranscriptionText } from '../services/transcriptSanitizer';
 import { 
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
 } from 'recharts';
@@ -87,7 +104,7 @@ interface TrainingSessionProps {
   agents: Agent[];
 }
 
-export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: initialScenario, onFinish, agents: allAgents }) => {
+export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: initialScenario, onFinish, agents: _agents }) => {
   const [step, setStep] = useState<'intro' | 'chat' | 'processing' | 'result'>('intro');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -104,8 +121,20 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
   const [textMetrics, setTextMetrics] = useState<any>(null);
   const [coachingMessage, setCoachingMessage] = useState<string | null>(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  /** Pré-check Gemini Live antes da simulação (sem o “cliente” perceber). */
+  const [livePreflightPhase, setLivePreflightPhase] = useState<'idle' | 'testing' | 'ready' | 'countdown'>('idle');
+  const [countdownNumber, setCountdownNumber] = useState<number | null>(null);
+  const [maintenanceNotice, setMaintenanceNotice] = useState<string | null>(null);
   const [lastPrediction, setLastPrediction] = useState<SimulationResult['realTimePrediction'] | null>(null);
-  const agentOrchestratorRef = useRef<AgentOrchestrator | null>(null);
+  /**
+   * Modal de confirmação ao sair / encerrar.
+   * `encerrar` = mesmo fluxo do botão "Encerrar Atendimento" (somente em chat).
+   */
+  const [exitModalContext, setExitModalContext] = useState<
+    null | 'encerrar' | 'sair-intro' | 'sair-processing' | 'sair-result'
+  >(null);
+  /** Usuário confirmou saída durante o processamento — não aplicar setResult ao concluir a avaliação. */
+  const trainingEvaluationDiscardedRef = useRef(false);
   const lastCoachKeyRef = useRef<string | null>(null);
   const lastCoachAtRef = useRef<number>(0);
   const lastCustomerMsgCountRef = useRef<number>(0);
@@ -130,10 +159,41 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
   const radarContainerRef = useRef<HTMLDivElement>(null);
   const [radarDimensions, setRadarDimensions] = useState<{ width: number; height: number } | null>(null);
 
+  const handleEndSimulationRef = useRef<() => Promise<void>>(async () => {});
+
   const cleanupAudioResources = () => {
     // Parar o processamento de áudio imediatamente
     isSessionActiveRef.current = false;
-    
+
+    // Cortar na hora o TTS do avatar (fontes de reprodução no contexto de saída)
+    const outForStop = audioContextRef.current;
+    const stopWhen =
+      outForStop && outForStop.state !== 'closed' ? outForStop.currentTime : 0;
+    try {
+      for (const source of audioSourcesRef.current) {
+        try {
+          source.onended = null;
+          source.stop(stopWhen);
+          source.disconnect();
+        } catch {
+          /* já parado ou desconectado */
+        }
+      }
+    } finally {
+      audioSourcesRef.current = [];
+    }
+    nextStartTimeRef.current = 0;
+
+    // Pausar vídeo do cliente (avatar) como em um “hard refresh”
+    if (clientVideoRef.current) {
+      try {
+        clientVideoRef.current.pause();
+        clientVideoRef.current.currentTime = 0;
+      } catch {
+        /* ignore */
+      }
+    }
+
     // Desconectar o processador de áudio ANTES de qualquer outra coisa
     if (audioProcessorRef.current) {
       try {
@@ -177,7 +237,20 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
         videoRef.current.srcObject = null;
       } catch (err) {}
     }
-    
+
+    // Fechar contexto de saída (fala do avatar / reprodução recebida)
+    if (audioContextRef.current) {
+      try {
+        const out = audioContextRef.current;
+        if (out.state !== 'closed') {
+          out.close();
+        }
+      } catch (err) {
+        /* ignore */
+      }
+      audioContextRef.current = null;
+    }
+
     // Fechar os contextos de áudio - ISSO É CRUCIAL PARA PARAR O ONAUDIOPROCESS
     if (inputAudioContextRef.current) {
       try {
@@ -196,7 +269,61 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
       } catch (err) {}
       liveSessionRef.current = null;
     }
+
+    setIsSpeaking(false);
+    setIsListening(false);
   };
+
+  /** Sai da simulação sem gerar relatório (sem diálogo do operador ou usuário confirmou saída antecipada). */
+  const abortSimulationWithoutReport = useCallback(() => {
+    setExitModalContext(null);
+    if (frameCaptureIntervalRef.current) {
+      clearInterval(frameCaptureIntervalRef.current);
+      frameCaptureIntervalRef.current = null;
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    cleanupAudioResources();
+    setMessages([]);
+    transcriptRef.current = [];
+    videoFramesRef.current = [];
+    setLastPrediction(null);
+    setCoachingMessage(null);
+    onFinish(null);
+  }, [onFinish]);
+
+  const abortWithoutReportRef = useRef(abortSimulationWithoutReport);
+  abortWithoutReportRef.current = abortSimulationWithoutReport;
+
+  const openEndSessionConfirmModal = () => {
+    if (step !== 'chat') return;
+    setExitModalContext('encerrar');
+  };
+
+  /** Cabeçalho "Sair do Treinamento": em chat reutiliza o mesmo modal de Encerrar Atendimento. */
+  const openLeaveTrainingConfirmModal = () => {
+    if (step === 'chat') {
+      setExitModalContext('encerrar');
+      return;
+    }
+    if (step === 'intro') {
+      setExitModalContext('sair-intro');
+      return;
+    }
+    if (step === 'processing') {
+      setExitModalContext('sair-processing');
+      return;
+    }
+    if (step === 'result' && result) {
+      setExitModalContext('sair-result');
+      return;
+    }
+    setExitModalContext('sair-intro');
+  };
+
+  const cancelExitModal = () => setExitModalContext(null);
 
   // Inicializar MediaPipe quando o componente montar
   useEffect(() => {
@@ -204,6 +331,13 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
       console.warn('⚠️ Erro ao inicializar MediaPipe (análise continuará com fallback):', err);
     });
   }, []);
+
+  /** Evita modal “encerrar” preso se o passo mudar sem fechar. */
+  useEffect(() => {
+    if (exitModalContext === 'encerrar' && step !== 'chat') {
+      setExitModalContext(null);
+    }
+  }, [step, exitModalContext]);
 
   useEffect(() => {
     if (step === 'intro' || step === 'chat') {
@@ -342,7 +476,15 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
       timerRef.current = window.setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
-            handleEndSimulation();
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+            const hasInteraction = transcriptHasOperatorInteraction(transcriptRef.current);
+            queueMicrotask(() => {
+              if (hasInteraction) void handleEndSimulationRef.current();
+              else abortWithoutReportRef.current();
+            });
             return 0;
           }
           return prev - 1;
@@ -404,18 +546,17 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
       setIsLoading(true);
       setStep('chat');
       
-      // Inicializar Orquestrador de Agentes se houver agentes vinculados
-      if (initialScenario.agentIds && initialScenario.agentIds.length > 0) {
-        console.log('🤖 Inicializando Orquestrador de Agentes IA:', initialScenario.agentIds.length, 'agentes vinculados');
-        agentOrchestratorRef.current = new AgentOrchestrator(initialScenario, allAgents);
-      }
-      
+      // Durante o Live não usamos REST do orquestrador (avaliador/coach), para não competir com a cota do Flash.
+      // Dicas de coach em tela vêm de getCoachTip (offline); avaliação completa no fim da sessão.
+
       // Resetar contadores de sugestões para nova sessão
       resetSuggestionCounters();
       
       // Limpar histórico de análise (microexpressões)
       clearAnalysisHistory();
-      
+
+      trainingEvaluationDiscardedRef.current = false;
+
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       await inputCtx.resume();
@@ -452,12 +593,8 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
 
           if (leaked && !liveCloseAlertShown) {
             liveCloseAlertShown = true;
-            alert(
-              'A API do Google encerrou a conexão: a chave Gemini foi bloqueada ou considerada vazada.\n\n' +
-                '1) Crie uma NOVA chave em https://aistudio.google.com/apikey\n' +
-                '2) Coloque em .env.local: VITE_GEMINI_API_KEY=sua_nova_chave\n' +
-                '3) Reinicie o servidor (npm run dev)\n\n' +
-                'Não commite a chave nem publique em repositórios públicos.'
+            setMaintenanceNotice(
+              'A chave Gemini foi recusada pelo Google (bloqueada ou vazada). Contate os administradores para criar uma nova chave em https://aistudio.google.com/apikey e atualizar a configuração — não compartilhe chaves em repositórios públicos.'
             );
             setStep('intro');
             setIsLoading(false);
@@ -478,7 +615,11 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
             audioProcessorRef.current = null;
           }
           
-          alert(`Erro ao conectar com a API: ${error.message || 'Verifique sua chave GEMINI_API_KEY no arquivo .env.local'}`);
+          setMaintenanceNotice(
+            error?.message
+              ? `Erro na conexão com o serviço de voz: ${error.message}. Aguarde alguns minutos ou contate os administradores.`
+              : 'Erro na conexão com o serviço de voz. O sistema pode estar em manutenção — aguarde ou contate os administradores.'
+          );
           setIsLoading(false);
           setStep('intro');
         },
@@ -617,86 +758,112 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
       setIsLoading(false);
     } catch (error: any) {
       console.error('❌ Erro ao inicializar sessão:', error);
-      alert(`Erro ao iniciar simulação: ${error.message || 'Verifique sua chave GEMINI_API_KEY no arquivo .env.local e reinicie o servidor'}`);
+      setMaintenanceNotice(
+        error?.message
+          ? `Não foi possível iniciar a simulação: ${error.message}. Se o problema continuar, contate os administradores.`
+          : 'Não foi possível iniciar a simulação. O sistema pode estar em manutenção — aguarde alguns minutos ou contate os administradores.'
+      );
       setIsLoading(false);
       setStep('intro');
     }
   };
 
+  const beginSimulationWithPreflight = async () => {
+    if (livePreflightPhase !== 'idle' || isLoading) return;
+    setMaintenanceNotice(null);
+    setLivePreflightPhase('testing');
+    try {
+      const check = await testGeminiLiveConnection(initialScenario);
+      if (check.ok === false) {
+        setLivePreflightPhase('idle');
+        setMaintenanceNotice(check.userMessage);
+        return;
+      }
+      setLivePreflightPhase('ready');
+      await new Promise((r) => setTimeout(r, 900));
+      setLivePreflightPhase('countdown');
+      for (let n = 3; n >= 1; n--) {
+        setCountdownNumber(n);
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      setCountdownNumber(null);
+      setLivePreflightPhase('idle');
+      await initLiveSession();
+    } catch {
+      setCountdownNumber(null);
+      setLivePreflightPhase('idle');
+      setMaintenanceNotice(
+        'Não foi possível preparar a simulação. O sistema pode estar em manutenção — aguarde alguns minutos ou contate os administradores.'
+      );
+    }
+  };
+
+  const preflightBusy = livePreflightPhase !== 'idle' || countdownNumber !== null;
+
   const updateTranscript = async (role: 'user' | 'assistant', content: string) => {
+    const fragment = sanitizeLiveTranscriptionText(content);
+    if (!fragment) return;
+
     setMessages(prev => {
       const last = prev[prev.length - 1];
       if (last && last.role === role) {
         const updated = [...prev];
-        updated[updated.length - 1] = { ...last, content: last.content + content };
+        updated[updated.length - 1] = {
+          ...last,
+          content: sanitizeLiveTranscriptionText(last.content + fragment),
+        };
         transcriptRef.current = updated;
         return updated;
       }
-      const newMsg: ChatMessage = { role, content, timestamp: new Date() };
+      const newMsg: ChatMessage = { role, content: fragment, timestamp: new Date() };
       const updated = [...prev, newMsg];
       transcriptRef.current = updated;
       
-      // Se for uma mensagem do usuário, gerar sugestão de excelência em tempo real usando IA
-      // Limitar apenas para as últimas mensagens para economizar quota
-      if (role === 'user' && updated.length <= 10) {
-        // --- NOVO MODO: Processamento com Orquestrador de Agentes ---
-        // IMPORTANTE: Apenas processa coaching/evaluation - NÃO envia resposta do cliente automaticamente
-        if (agentOrchestratorRef.current) {
-          agentOrchestratorRef.current.processInteraction(content, prev)
-            .then(result => {
-              // IMPORTANTE: A dica do coach é APENAS VISUAL - não deve ser enviada ao cliente
-              if (result.coaching) {
-                console.log('🤖 Dica do Agente Coach (apenas visual):', result.coaching.content);
-                setCoachingMessage(result.coaching.content);
-                // NÃO enviar result.coaching.content para o cliente - é apenas uma dica visual
-              }
-              if (result.evaluation) {
-                console.log('🤖 Avaliação do Agente Evaluator:', result.evaluation.metadata);
-                // Aqui poderíamos atualizar uma mini-dashboard de performance em tempo real
-              }
-              // IMPORTANTE: result.customerResponse NÃO deve ser enviado automaticamente
-              // O cliente responde através do Gemini Live API, não através dos agentes
-            }).catch(err => console.warn('Erro no processamento de agentes:', err));
-        }
-
-        // Buscar mensagem anterior do cliente para contexto
-        const prevCustomerMsg = prev.length > 0 && prev[prev.length - 1]?.role === 'assistant' 
-          ? prev[prev.length - 1].content 
-          : '';
-        
-        // Gerar sugestão de forma assíncrona (não bloqueia a UI)
-        // Usar debounce para evitar muitas chamadas
+      // Sugestão de excelência: por turno do usuário (limite economiza cota no tier gratuito).
+      const userTurnCount = updated.filter(m => m.role === 'user').length;
+      if (role === 'user' && userTurnCount <= 24) {
+        const userTs = newMsg.timestamp.getTime();
         setTimeout(() => {
+          const snap = transcriptRef.current ?? [];
+          const userRow = snap.find(
+            (m) => m.role === 'user' && m.timestamp.getTime() === userTs
+          );
+          const fullUserText = userRow?.content ?? content;
+          let prevCustomerMsg = '';
+          const idx = snap.findIndex((m) => m.role === 'user' && m.timestamp.getTime() === userTs);
+          if (idx > 0) {
+            for (let i = idx - 1; i >= 0; i--) {
+              if (snap[i].role === 'assistant') {
+                prevCustomerMsg = snap[i].content;
+                break;
+              }
+            }
+          }
+
           generateExcellenceSuggestionWithAI(
             prevCustomerMsg,
-            content,
+            fullUserText,
             initialScenario,
-            updated
-          ).then(suggestion => {
-          // Atualizar a mensagem com a sugestão quando estiver pronta
-          setMessages(current => {
-            const msgIndex = current.findIndex(m => 
-              m.role === 'user' && 
-              m.content === content && 
-              m.timestamp === newMsg.timestamp
-            );
-            
-            if (msgIndex !== -1 && !current[msgIndex].suggestedResponse) {
-              const updatedWithSuggestion = [...current];
-              updatedWithSuggestion[msgIndex] = {
-                ...updatedWithSuggestion[msgIndex],
-                suggestedResponse: suggestion
-              };
-              transcriptRef.current = updatedWithSuggestion;
-              return updatedWithSuggestion;
-            }
-            return current;
-          });
-          }).catch(error => {
-            console.warn('Erro ao gerar sugestão em tempo real:', error);
-            // Não fazer nada em caso de erro - a sugestão será gerada no final se necessário
-          });
-        }, 1000); // Debounce de 1 segundo para evitar muitas chamadas
+            snap
+          )
+            .then((suggestion) => {
+              setMessages((current) => {
+                const msgIndex = current.findIndex(
+                  (m) => m.role === 'user' && m.timestamp.getTime() === userTs
+                );
+                if (msgIndex !== -1 && !current[msgIndex].suggestedResponse) {
+                  const withSug = [...current];
+                  withSug[msgIndex] = { ...withSug[msgIndex], suggestedResponse: suggestion };
+                  transcriptRef.current = withSug;
+                  return withSug;
+                }
+                return current;
+              });
+            })
+            .catch(() => {
+              /* já tratado em generateExcellenceSuggestionWithAI / fallback */
+            });
+        }, 1000);
       }
       
       return updated;
@@ -755,6 +922,11 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
   }, [step, currentMood, initialScenario]);
 
   const handleEndSimulation = async () => {
+    if (!transcriptHasOperatorInteraction(transcriptRef.current)) {
+      abortSimulationWithoutReport();
+      return;
+    }
+    trainingEvaluationDiscardedRef.current = false;
     setStep('processing');
     setProcessingComplete(false);
     
@@ -799,7 +971,7 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
             ]);
             
             // Combinar análise holística com análise básica
-            const enhancedAttendantAnalysis = holisticAnalysis 
+            const enhancedRaw = holisticAnalysis
               ? {
                   ...attendantAnalysis,
                   ...holisticAnalysis.video,
@@ -807,9 +979,17 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                   combinedScore: holisticAnalysis.combined.overallScore,
                   strengths: holisticAnalysis.combined.strengths,
                   weaknesses: holisticAnalysis.combined.weaknesses,
-                  recommendations: holisticAnalysis.combined.recommendations
+                  recommendations: holisticAnalysis.combined.recommendations,
                 }
               : attendantAnalysis;
+            const narrative = attendantNarrativeFromExpressions(enhancedRaw.expressions);
+            const enhancedAttendantAnalysis = narrative
+              ? { ...enhancedRaw, overallMood: narrative.overallMood, feedback: narrative.feedback }
+              : {
+                  ...enhancedRaw,
+                  feedback:
+                    sanitizeAttendantAnalysisFeedback(enhancedRaw.feedback) ?? enhancedRaw.feedback,
+                };
             
             // Estimativas de custo: Live API ~US$0.01–0.05 por sessão; sugestões ~US$0.0005 por mensagem do operador
             const liveEstimateUsd = sessionDurationSeconds < 60 ? 0.01 : Math.min(0.06, 0.01 + (sessionDurationSeconds / 60) * 0.012);
@@ -833,11 +1013,15 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
               (finalResult.transcript && finalResult.transcript.length > 0) ? finalResult.transcript : transcriptRef.current,
               initialScenario
             );
-            
+
+            if (trainingEvaluationDiscardedRef.current) return;
+
             setResult(finalResult);
             setProcessingComplete(true);
           } catch (error: any) {
         console.error('❌ Erro ao avaliar performance:', error);
+
+        if (trainingEvaluationDiscardedRef.current) return;
         
         // Criar resultado mockado em caso de erro (campos obrigatórios serão preenchidos no App.tsx)
         const mockResult: Partial<SimulationResult> = {
@@ -876,6 +1060,43 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
     })();
   };
 
+  handleEndSimulationRef.current = handleEndSimulation;
+
+  const confirmExitModal = () => {
+    const ctx = exitModalContext;
+    setExitModalContext(null);
+
+    if (ctx === 'encerrar') {
+      const hasInteraction = transcriptHasOperatorInteraction(transcriptRef.current);
+      if (!hasInteraction) abortSimulationWithoutReport();
+      else void handleEndSimulation();
+      return;
+    }
+
+    if (ctx === 'sair-result' && result) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (frameCaptureIntervalRef.current) {
+        clearInterval(frameCaptureIntervalRef.current);
+        frameCaptureIntervalRef.current = null;
+      }
+      cleanupAudioResources();
+      onFinish(result);
+      return;
+    }
+
+    if (ctx === 'sair-processing') {
+      trainingEvaluationDiscardedRef.current = true;
+      abortSimulationWithoutReport();
+      return;
+    }
+
+    if (ctx === 'sair-intro') {
+      abortSimulationWithoutReport();
+    }
+  };
 
   // Efeito para ir para o resultado quando o processamento estiver completo
   useEffect(() => {
@@ -959,23 +1180,220 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
           >
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          <button onClick={() => {
-            if (timerRef.current) {
-              clearInterval(timerRef.current);
-              timerRef.current = null;
-            }
-            cleanupAudioResources();
-            onFinish(null);
-          }} className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-[#000fff] transition-all active:scale-90 flex items-center gap-2 font-bold text-sm">
+          <button
+            type="button"
+            onClick={openLeaveTrainingConfirmModal}
+            className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-[#000fff] transition-all active:scale-90 flex items-center gap-2 font-bold text-sm"
+          >
             <ArrowLeft size={24} />
             Sair do Treinamento
           </button>
         </div>
       </header>
 
+      {exitModalContext !== null && (
+        <div
+          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/55 backdrop-blur-sm p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="exit-modal-title"
+        >
+          <div className="bg-white rounded-[28px] shadow-2xl max-w-md w-full p-8 border border-gray-100">
+            {exitModalContext === 'encerrar' && step === 'chat' && (
+              <>
+                <h2 id="exit-modal-title" className="text-xl font-black text-gray-900 mb-3">
+                  Encerrar atendimento?
+                </h2>
+                {transcriptHasOperatorInteraction(transcriptRef.current) ? (
+                  <>
+                    <p className="text-sm text-gray-600 leading-relaxed mb-6">
+                      Deseja realmente encerrar? Um relatório será gerado com base na conversa desta sessão com o cliente.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={cancelExitModal}
+                        className="flex-1 py-3 rounded-2xl border-2 border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Continuar simulação
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmExitModal}
+                        className="flex-1 py-3 rounded-2xl bg-[#000fff] text-white font-black uppercase text-xs tracking-widest hover:bg-[#000fff]/90 transition-colors"
+                      >
+                        Encerrar e ver relatório
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600 leading-relaxed mb-6">
+                      Você ainda não interagiu com o cliente (nenhuma fala sua foi registrada). Se sair agora, você volta à lista de treinamento e não haverá relatório desta sessão.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={cancelExitModal}
+                        className="flex-1 py-3 rounded-2xl border-2 border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Voltar à simulação
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmExitModal}
+                        className="flex-1 py-3 rounded-2xl bg-gray-900 text-white font-black uppercase text-xs tracking-widest hover:bg-black transition-colors"
+                      >
+                        Sair sem relatório
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {exitModalContext === 'sair-intro' && (
+              <>
+                <h2 id="exit-modal-title" className="text-xl font-black text-gray-900 mb-3">
+                  Sair do treinamento?
+                </h2>
+                <p className="text-sm text-gray-600 leading-relaxed mb-6">
+                  Deseja voltar à lista de treinamento sem iniciar ou continuar a simulação?
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={cancelExitModal}
+                    className="flex-1 py-3 rounded-2xl border-2 border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Continuar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmExitModal}
+                    className="flex-1 py-3 rounded-2xl bg-gray-900 text-white font-black uppercase text-xs tracking-widest hover:bg-black transition-colors"
+                  >
+                    Sair
+                  </button>
+                </div>
+              </>
+            )}
+
+            {exitModalContext === 'sair-processing' && (
+              <>
+                <h2 id="exit-modal-title" className="text-xl font-black text-gray-900 mb-3">
+                  Interromper processamento?
+                </h2>
+                <p className="text-sm text-gray-600 leading-relaxed mb-6">
+                  O relatório ainda está sendo gerado. Se sair agora, você volta à lista e esta sessão não será salva.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={cancelExitModal}
+                    className="flex-1 py-3 rounded-2xl border-2 border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Aguardar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmExitModal}
+                    className="flex-1 py-3 rounded-2xl bg-gray-900 text-white font-black uppercase text-xs tracking-widest hover:bg-black transition-colors"
+                  >
+                    Sair sem relatório
+                  </button>
+                </div>
+              </>
+            )}
+
+            {exitModalContext === 'sair-result' && (
+              <>
+                <h2 id="exit-modal-title" className="text-xl font-black text-gray-900 mb-3">
+                  Sair do treinamento?
+                </h2>
+                <p className="text-sm text-gray-600 leading-relaxed mb-6">
+                  Deseja voltar à lista de treinamento? O resultado desta sessão será salvo no histórico.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={cancelExitModal}
+                    className="flex-1 py-3 rounded-2xl border-2 border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Continuar vendo o relatório
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmExitModal}
+                    className="flex-1 py-3 rounded-2xl bg-[#000fff] text-white font-black uppercase text-xs tracking-widest hover:bg-[#000fff]/90 transition-colors"
+                  >
+                    Voltar à lista
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className={`flex-1 relative flex flex-col ${step === 'result' || step === 'processing' ? 'overflow-y-auto' : 'overflow-hidden'} transition-colors duration-300 ${isDarkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' : 'bg-gradient-to-br from-[#F8F9FA] via-white to-[#F8F9FA]'}`}>
+        {step === 'intro' && (livePreflightPhase !== 'idle' || countdownNumber !== null) && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 backdrop-blur-sm p-6 animate-in fade-in duration-300"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-md w-full p-10 text-center border border-gray-100">
+              {livePreflightPhase === 'testing' && (
+                <>
+                  <Loader2 className="w-14 h-14 text-[#000fff] animate-spin mx-auto mb-6" aria-hidden />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Ultragaz Treino</p>
+                  <h4 className="text-xl font-black text-gray-900 tracking-tight mb-2">Testando comunicação</h4>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    Verificando conexão com o serviço de voz. Isso é automático e silencioso para a simulação.
+                  </p>
+                </>
+              )}
+              {livePreflightPhase === 'ready' && (
+                <>
+                  <CheckCircle2 className="w-14 h-14 text-[#00C48C] mx-auto mb-6" aria-hidden />
+                  <h4 className="text-xl font-black text-gray-900 tracking-tight mb-2">Tudo certo</h4>
+                  <p className="text-sm text-gray-500">Comunicação com o serviço de voz confirmada. Preparando sua entrada…</p>
+                </>
+              )}
+              {livePreflightPhase === 'countdown' && countdownNumber !== null && (
+                <>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Sua simulação começa em</p>
+                  <div className="text-7xl font-black text-[#000fff] tabular-nums mb-4 animate-in zoom-in-95 duration-300" key={countdownNumber}>
+                    {countdownNumber}
+                  </div>
+                  <p className="text-sm text-gray-500">Mantenha o microfone e a câmera prontos.</p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {step === 'intro' && (
-          <div className="flex-1 flex items-center justify-center p-6 lg:p-8 animate-in fade-in duration-500 overflow-hidden">
+          <div className="relative flex-1 flex items-center justify-center p-6 lg:p-8 animate-in fade-in duration-500 overflow-hidden">
+            {maintenanceNotice && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[150] w-full max-w-2xl px-4">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-lg flex gap-3 items-start">
+                  <XCircle className="text-amber-600 shrink-0 mt-0.5" size={22} aria-hidden />
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-800 mb-1">Aviso</p>
+                    <p className="text-sm font-medium text-amber-950 leading-relaxed">{maintenanceNotice}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMaintenanceNotice(null)}
+                    className="text-[10px] font-black uppercase text-amber-800 hover:text-amber-950 shrink-0"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-center h-full">
               {/* Lado Esquerdo: Informações */}
               <div className="flex flex-col items-center justify-center space-y-4 lg:space-y-6">
@@ -1104,16 +1522,17 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                 </div>
 
                 <button 
-                  onClick={initLiveSession}
-                  disabled={isLoading}
+                  type="button"
+                  onClick={beginSimulationWithPreflight}
+                  disabled={isLoading || preflightBusy}
                   className="w-full max-w-md group relative overflow-hidden bg-gradient-to-r from-[#000fff] via-[#00AEEF] to-[#0f0] text-white rounded-[24px] lg:rounded-[32px] font-black text-lg lg:text-xl xl:text-2xl shadow-2xl hover:shadow-[#000fff]/30 hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-3 lg:gap-4 py-5 lg:py-6 xl:py-7 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                   <Mic size={24} className="relative z-10 lg:w-7 lg:h-7" />
                   <span className="relative z-10">
-                    {isLoading ? 'Iniciando...' : 'Iniciar Simulação'}
+                    {preflightBusy ? 'Aguarde…' : isLoading ? 'Iniciando...' : 'Iniciar Simulação'}
                   </span>
-                  {!isLoading && (
+                  {!isLoading && !preflightBusy && (
                     <div className="absolute -right-3 lg:-right-4 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 bg-white/20 rounded-full flex items-center justify-center">
                       <ArrowLeft className="rotate-180 text-white" size={18} />
                     </div>
@@ -1273,7 +1692,7 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                 {/* Mobile: botão Encerrar flutuante sobre o vídeo (estilo chamada de vídeo) */}
                 <div className="md:hidden absolute bottom-6 left-4 right-4 z-40">
                   <button
-                    onClick={handleEndSimulation}
+                    onClick={openEndSessionConfirmModal}
                     className="w-full py-5 rounded-[28px] font-black uppercase tracking-widest text-sm shadow-2xl active:scale-[0.98] bg-[#000fff] text-white hover:bg-[#000fff]/90 border-2 border-white/20"
                   >
                     Encerrar Atendimento
@@ -1297,7 +1716,7 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                 customerMood={currentMood}
               />
               <button
-                onClick={handleEndSimulation}
+                onClick={openEndSessionConfirmModal}
                 className={`py-5 rounded-[32px] font-black uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95 ${isDarkMode ? 'bg-[#000fff] text-white hover:bg-[#000fff]/90' : 'bg-gray-900 text-white hover:bg-black'}`}
               >
                 Encerrar Atendimento
@@ -1483,7 +1902,10 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                       <h3 className={`text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2 transition-colors duration-300 ${isDarkMode ? 'text-[#00AEEF]' : 'text-[#000fff]'}`}>
                         <XCircle size={14} /> Oportunidades de Melhoria
                       </h3>
-                      <p className={`font-bold leading-relaxed transition-colors duration-300 ${isDarkMode ? 'text-white/90' : 'text-gray-900'}`}>{result.missingFeedback}</p>
+                      <p className={`font-bold leading-relaxed whitespace-pre-wrap transition-colors duration-300 ${isDarkMode ? 'text-white/90' : 'text-gray-900'}`}>
+                        {(result.missingFeedback && result.missingFeedback.trim()) ||
+                          'Siga evoluindo com base no feedback geral e no diálogo registrado.'}
+                      </p>
                    </section>
 
                    {/* Análise do Atendente baseada na câmera */}
@@ -1601,7 +2023,8 @@ export const TrainingSession: React.FC<TrainingSessionProps> = ({ scenario: init
                            </span>
                          </div>
                          <p className={`text-sm font-medium leading-relaxed transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                           {result.attendantAnalysis.feedback}
+                           {sanitizeAttendantAnalysisFeedback(result.attendantAnalysis.feedback) ??
+                             result.attendantAnalysis.feedback}
                          </p>
                        </div>
                      </section>
