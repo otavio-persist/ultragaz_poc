@@ -3,7 +3,7 @@
  * Use também para substituir mensagens antigas salvas em histórico/localStorage.
  */
 export const ATTENDANT_VISION_OFF_MESSAGE_PT =
-  'Os percentuais acima são referências visuais de apoio. A análise facial detalhada por IA na nuvem não é aplicada nesta versão do treino (economia de uso da API); interprete principalmente o diálogo, o feedback geral e as oportunidades de melhoria.';
+  'Os percentuais acima são referências visuais de apoio. interprete principalmente o diálogo, o feedback geral e as oportunidades de melhoria.';
 
 export function sanitizeAttendantAnalysisFeedback(
   feedback: string | undefined | null
